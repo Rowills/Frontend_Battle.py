@@ -3,7 +3,7 @@ import API from '../api/axios';
 import { useNavigate, Link } from 'react-router-dom';
 
 function Login() {
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
@@ -12,8 +12,7 @@ function Login() {
     e.preventDefault();
     try {
       const response = await API.post('/auth/login', {
-        username: '',
-        email: email,
+        username: username,
         password: password,
       });
       localStorage.setItem('user_id', response.data.user_id);
@@ -31,7 +30,7 @@ function Login() {
         {/* Logo */}
         <div style={styles.logo}>⚔️</div>
         <h1 style={styles.title}>Battle.py</h1>
-        <p style={styles.subtitle}>Login to start battling</p>
+        <p style={styles.subtitle}>Login with your username</p>
 
         {/* Error */}
         {error && <p className="error-msg">{error}</p>}
@@ -40,10 +39,11 @@ function Login() {
         <form onSubmit={handleLogin}>
           <input
             className="input-field"
-            type="email"
-            placeholder="Enter your email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            type="text"
+            placeholder="Enter your username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            autoComplete="username"
             required
           />
           <input
@@ -52,6 +52,7 @@ function Login() {
             placeholder="Enter your password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
             required
           />
           <button className="btn-primary" type="submit">

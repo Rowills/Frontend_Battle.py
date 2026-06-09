@@ -12,8 +12,11 @@ function Register() {
   const handleRegister = async (e) => {
     e.preventDefault();
     try {
-      await API.post('/auth/register', { username, email, password });
-      navigate('/login');
+      const response = await API.post('/auth/register', { username, email, password });
+      // Auto-login after register
+      localStorage.setItem('user_id', response.data.user_id);
+      localStorage.setItem('username', response.data.username);
+      navigate('/lobby');
     } catch (err) {
       setError(err.response?.data?.detail || 'Registration failed');
     }
@@ -36,6 +39,7 @@ function Register() {
             placeholder="Choose a username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
+            autoComplete="username"
             required
           />
           <input
@@ -44,6 +48,7 @@ function Register() {
             placeholder="Enter your email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
             required
           />
           <input
@@ -52,6 +57,7 @@ function Register() {
             placeholder="Create a password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            autoComplete="new-password"
             required
           />
           <button className="btn-primary" type="submit">
