@@ -136,11 +136,11 @@ function Battle({ join = false }) {
     if (battleStarted && problem) {
       setCode(problem.starter);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [battleStarted]);
 
   useEffect(() => {
-    const backendUrl = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000';
-    const wsUrl = backendUrl.replace('https://', 'wss://').replace('http://', 'ws://');
+    const wsUrl = 'wss://pybattle-backend.onrender.com';
     const ws = new WebSocket(`${wsUrl}/ws/battle/${id}/${playerId}`);
     wsRef.current = ws;
     ws.onopen = () => {
@@ -195,6 +195,7 @@ function Battle({ join = false }) {
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [battleStarted, submitted]);
 
   // Disable copy/paste and right-click
@@ -252,6 +253,7 @@ function Battle({ join = false }) {
     }
     const timer = setInterval(() => setTimeLeft((t) => t - 1), 1000);
     return () => clearInterval(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timerActive, timeLeft]);
 
   const formatTime = (secs) => {
