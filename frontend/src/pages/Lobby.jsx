@@ -137,12 +137,14 @@ function Lobby() {
             <>
               <span style={styles.welcome}>👋 {username}</span>
               <button style={styles.navBtn} onClick={() => navigate('/leaderboard')}>🏆 Leaderboard</button>
+              <button style={styles.navBtn} onClick={() => navigate('/about')}>ℹ️ About</button>
               <button style={styles.navBtn} onClick={() => navigate('/profile')}>👤 Profile</button>
               <button style={styles.logoutBtn} onClick={handleLogout}>🚪 Logout</button>
             </>
           ) : (
             <>
               <button style={styles.navBtn} onClick={() => navigate('/leaderboard')}>🏆 Leaderboard</button>
+              <button style={styles.navBtn} onClick={() => navigate('/about')}>ℹ️ About</button>
               <button style={styles.loginBtn} onClick={() => navigate('/login')}>Login</button>
               <button style={styles.registerBtn} onClick={() => navigate('/register')}>Register</button>
             </>

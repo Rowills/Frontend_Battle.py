@@ -7,6 +7,7 @@ import Lobby from './pages/Lobby';
 import Battle from './pages/Battle';
 import Leaderboard from './pages/Leaderboard';
 import Profile from './pages/Profile';
+import About from './pages/About';
 
 function App() {
   const isLoggedIn = localStorage.getItem('user_id');
@@ -21,6 +22,7 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/leaderboard" element={<Leaderboard />} />
+        <Route path="/about" element={<About />} />
 
         {/* These require login */}
         <Route path="/battle/:id" element={isLoggedIn ? <Battle /> : <Navigate to="/login" />} />
