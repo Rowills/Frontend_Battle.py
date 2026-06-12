@@ -263,8 +263,14 @@ function Battle({ join = false }) {
   };
 
   const checkAnswer = (userCode) => {
-    const clean = (str) => str.replace(/\s/g, '').toLowerCase();
-    return clean(userCode).includes(clean(problem.answer_key));
+    // Remove all whitespace, quotes, and lowercase for flexible matching
+    const clean = (str) => str.replace(/\s/g, '').replace(/['"]/g, '').toLowerCase();
+    const cleanCode = clean(userCode);
+    const cleanKey = clean(problem.answer_key);
+    // Also check if code has a proper function definition and is not just 'pass'
+    const hasFunction = userCode.includes('def ');
+    const notEmpty = userCode.replace(/\s/g, '') !== 'pass' && userCode.trim().length > 10;
+    return hasFunction && notEmpty && cleanCode.includes(cleanKey);
   };
 
   const submitCode = () => {

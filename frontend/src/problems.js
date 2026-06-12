@@ -56,7 +56,7 @@ const problems = [
     description: "Write a function that counts the number of vowels (a,e,i,o,u) in a given string.",
     example: "Input: 'hello world' → Output: 3",
     hint: "Loop through each character and check if it's in 'aeiou'.",
-    answer_key: "in 'aeiou'",
+    answer_key: "aeiou",
     starter: "def count_vowels(s):\n    # Write your solution here\n    pass",
   },
   {
