@@ -1,4 +1,5 @@
 import React from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Register from './pages/Register';
 import Login from './pages/Login';
@@ -12,6 +13,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <Analytics />
       <Routes>
         {/* Lobby is public — anyone can view */}
         <Route path="/" element={<Lobby />} />
