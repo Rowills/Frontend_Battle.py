@@ -26,7 +26,7 @@ function Profile() {
 
       {/* Navbar */}
       <div style={styles.navbar}>
-        <h2 style={styles.logo}>⚔️ Battle.py</h2>
+        <h2 style={styles.logo}>⚔️ PyBattle</h2>
         <div style={styles.navLinks}>
           <button style={styles.navBtn} onClick={() => navigate('/lobby')}>🏠 Lobby</button>
           <button style={styles.navBtn} onClick={() => navigate('/leaderboard')}>🏆 Leaderboard</button>
@@ -41,7 +41,7 @@ function Profile() {
         {/* Avatar */}
         <div style={styles.avatar}>{username?.[0]?.toUpperCase() || '?'}</div>
         <h1 style={styles.username}>{username}</h1>
-        <p style={styles.subtitle}>Battle.py Player</p>
+        <p style={styles.subtitle}>PyBattle Player</p>
 
         {loading ? (
           <p style={{ color: '#aaa', marginTop: '30px' }}>Loading stats...</p>

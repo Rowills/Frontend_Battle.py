@@ -21,7 +21,7 @@ function Leaderboard() {
 
       {/* Navbar */}
       <div style={styles.navbar}>
-        <h2 style={styles.logo}>⚔️ Battle.py</h2>
+        <h2 style={styles.logo}>⚔️ PyBattle</h2>
         <div style={styles.navLinks}>
           <button style={styles.navBtn} onClick={() => navigate('/lobby')}>🏠 Lobby</button>
           <button style={styles.navBtn} onClick={() => navigate('/profile')}>👤 My Profile</button>

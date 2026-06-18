@@ -61,7 +61,7 @@ function About() {
     <div style={styles.page}>
       {/* Navbar */}
       <nav style={styles.navbar}>
-        <Link to="/" style={styles.navLogo}>⚔️ Battle.py</Link>
+        <Link to="/" style={styles.navLogo}>⚔️ PyBattle</Link>
         <div style={styles.navLinks}>
           <Link to="/leaderboard" style={styles.navLink}>🏆 Leaderboard</Link>
           {isLoggedIn ? (
@@ -83,15 +83,15 @@ function About() {
         {/* Hero */}
         <div style={styles.hero}>
           <div style={styles.heroEmoji}>⚔️</div>
-          <h1 style={styles.heroTitle}>Battle.py</h1>
+          <h1 style={styles.heroTitle}>PyBattle</h1>
           <p style={styles.heroSub}>The real-time 1v1 Python coding battle platform for beginners</p>
         </div>
 
         {/* About Section */}
         <div style={styles.card}>
-          <h2 style={styles.cardTitle}>🎯 About Battle.py</h2>
+          <h2 style={styles.cardTitle}>🎯 About PyBattle</h2>
           <p style={styles.text}>
-            Battle.py is a free real-time coding platform where you can challenge friends to 1v1 Python coding battles.
+            PyBattle is a free real-time coding platform where you can challenge friends to 1v1 Python coding battles.
             Solve problems, race against the clock, and climb the leaderboard. Built for beginners who want to sharpen
             their Python skills in a fun and competitive way!
           </p>
@@ -112,7 +112,7 @@ function About() {
             <div style={styles.avatar}>RF</div>
             <div>
               <p style={styles.creatorName}>Roy Fleming</p>
-              <p style={styles.creatorBio}>Python developer & creator of Battle.py</p>
+              <p style={styles.creatorBio}>Python developer & creator of PyBattle</p>
               <div style={styles.socials}>
                 <a href="https://instagram.com/py.program2026" target="_blank" rel="noreferrer" style={styles.socialBtn}>
                   📸 @py.program2026
@@ -190,7 +190,7 @@ function About() {
 
         {/* Copyright */}
         <div style={styles.footer}>
-          <p style={styles.footerText}>© {new Date().getFullYear()} Battle.py — Made with ❤️ by Roy Fleming</p>
+          <p style={styles.footerText}>© {new Date().getFullYear()} PyBattle — Made with ❤️ by Roy Fleming</p>
           <p style={styles.footerText}>
             <a href="https://instagram.com/py.program2026" target="_blank" rel="noreferrer" style={styles.footerLink}>Instagram</a>
             {' · '}

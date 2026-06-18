@@ -29,7 +29,7 @@ function Login() {
 
         {/* Logo */}
         <div style={styles.logo}>⚔️</div>
-        <h1 style={styles.title}>Battle.py</h1>
+        <h1 style={styles.title}>PyBattle</h1>
         <p style={styles.subtitle}>Login with your username</p>
 
         {/* Error */}

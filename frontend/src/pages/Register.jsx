@@ -27,7 +27,7 @@ function Register() {
       <div style={styles.card}>
 
         <div style={styles.logo}>⚔️</div>
-        <h1 style={styles.title}>Battle.py</h1>
+        <h1 style={styles.title}>PyBattle</h1>
         <p style={styles.subtitle}>Create your account</p>
 
         {error && <p className="error-msg">{error}</p>}

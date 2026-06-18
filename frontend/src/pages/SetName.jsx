@@ -27,7 +27,7 @@ function SetName() {
       <div style={styles.card}>
 
         <div style={styles.logo}>⚔️</div>
-        <h1 style={styles.title}>Battle.py</h1>
+        <h1 style={styles.title}>PyBattle</h1>
         <p style={styles.subtitle}>Enter your battle name to begin!</p>
 
         {error && <p className="error-msg">{error}</p>}

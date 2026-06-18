@@ -131,7 +131,7 @@ function Lobby() {
 
       {/* Navbar */}
       <div style={styles.navbar}>
-        <h2 style={styles.navLogo}>⚔️ Battle.py</h2>
+        <h2 style={styles.navLogo}>⚔️ PyBattle</h2>
         <div style={styles.navRight}>
           {isLoggedIn ? (
             <>
