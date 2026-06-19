@@ -5,6 +5,7 @@ import problems from '../problems';
 import API from '../api/axios';
 import {
   simulateHumanTyping,
+  simulateSlowReEdit,
   randomHumanName,
   pickSkillLevel,
   getSolveTime,
@@ -159,48 +160,80 @@ function Battle({ join = false }) {
 
   // ── Silent opponent fallback after MATCH_WAIT_MS ──────────────────────────
   const launchSilentOpponent = useCallback(() => {
-    const skill     = pickSkillLevel();
-    const fakeName  = randomHumanName();
-    const solveTime = getSolveTime(problem?.difficulty, skill);
-    const winProb   = winChance(skill);
-    const solution  = getBotSolution(problem);
+    const skill      = pickSkillLevel();
+    const fakeName   = randomHumanName();
+    const solveTime  = getSolveTime(problem?.difficulty, skill);
+    const winProb    = winChance(skill);
+    const solution   = getBotSolution(problem);
+
+    // Decide the battle outcome upfront
+    // "correctWin"  — bot edits wrong → gets correct → wins
+    // "wrongTwice"  — bot edits wrong → still wrong (or correct but too late)
+    const outcomeRoll = Math.random();
+    const willWinAfterEdit = outcomeRoll < 0.45; // 45% chance bot corrects & wins
 
     setOpponentName(fakeName);
     setMessages(p => [...p, `⚔️ ${fakeName} joined the battle!`]);
 
-    // Small "found player" delay before starting — feels natural
+    // Small "found player" delay — feels natural
     setTimeout(() => {
       setBattleStarted(true);
       startCountdown();
 
-      // Start typing simulation after the 3-2-1 countdown (≈4s)
-      setTimeout(() => {
-        abortRef.current = new AbortController();
-        simulateHumanTyping(
-          solution,
-          setOpponentCode,
-          skill,
-          abortRef.current.signal
-        ).catch(() => {});   // swallow AbortError silently
-      }, 4500);
+      // Typing sim starts after 3-2-1 countdown (≈4.5s)
+      const COUNTDOWN_MS = 4500;
 
-      // Opponent submission at solve time
-      const submitMs = solveTime * 1000;
+      abortRef.current = new AbortController();
+      const signal = abortRef.current.signal;
+
+      // Phase 1: type the initial (possibly imperfect) code
       setTimeout(() => {
+        simulateHumanTyping(solution, setOpponentCode, skill, signal).catch(() => {});
+      }, COUNTDOWN_MS);
+
+      // Phase 2: first submission (always wrong — triggers re-edit drama)
+      const firstSubmitMs = COUNTDOWN_MS + solveTime * 1000;
+      setTimeout(() => {
+        if (signal.aborted) return;
         setOpponentSubmitted(true);
         setMessages(p => [...p, `🏁 ${fakeName} submitted!`]);
+        setMessages(p => [...p, `❌ ${fakeName} got a wrong answer.`]);
 
-        if (!submittedRef.current) {
-          if (Math.random() < winProb) {
-            setTimeout(() => {
-              setOpponentWon(true);
-              setMessages(p => [...p, `🏆 ${fakeName} got it right!`]);
-            }, 1200);
-          } else {
-            setMessages(p => [...p, `❌ ${fakeName} got a wrong answer.`]);
-          }
-        }
-      }, submitMs + 4500); // +4500 accounts for countdown
+        // Phase 3: opponent re-opens editor and edits slowly
+        setTimeout(() => {
+          if (signal.aborted) return;
+          setOpponentSubmitted(false); // back to editing
+          setMessages(p => [...p, `✏️ ${fakeName} is editing their solution...`]);
+
+          // Slow re-edit: backspace + careful retyping (1.8–3.5s per char)
+          const currentCodeSnap = solution; // snapshot of what's visible
+          const correctedCode   = solution; // same solution — just re-typed carefully
+
+          simulateSlowReEdit(currentCodeSnap, correctedCode, setOpponentCode, signal)
+            .then(() => {
+              if (signal.aborted) return;
+
+              // Phase 4: second submission
+              setOpponentSubmitted(true);
+              setMessages(p => [...p, `🏁 ${fakeName} resubmitted!`]);
+
+              if (!submittedRef.current && willWinAfterEdit) {
+                // Bot corrects and wins
+                setTimeout(() => {
+                  if (signal.aborted) return;
+                  setOpponentWon(true);
+                  setMessages(p => [...p, `🏆 ${fakeName} got it right this time!`]);
+                }, 1500);
+              } else {
+                // Bot still wrong — or user already won
+                setMessages(p => [...p, `❌ ${fakeName} got it wrong again.`]);
+              }
+            })
+            .catch(() => {});
+
+        }, 4000 + Math.random() * 3000); // 4–7s pause before starting re-edit
+      }, firstSubmitMs);
+
     }, 1200);
   }, [problem, startCountdown]);
 

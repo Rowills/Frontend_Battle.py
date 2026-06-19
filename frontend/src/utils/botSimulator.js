@@ -275,3 +275,51 @@ export const BOT_SOLUTIONS = {
 export function getBotSolution(problem) {
   return BOT_SOLUTIONS[problem?.id] || `def solution():\n    pass`;
 }
+
+// ── Slow re-edit after wrong answer ──────────────────────────────────────────
+// Types character-by-character with 1.5–3.5s gaps — looks like careful review
+export async function simulateSlowReEdit(currentCode, correctCode, setCode, abortSignal) {
+  const waitMs = ms => new Promise(r => setTimeout(r, ms));
+  const check  = async ms => {
+    if (abortSignal?.aborted) throw new DOMException('Aborted','AbortError');
+    await waitMs(ms);
+    if (abortSignal?.aborted) throw new DOMException('Aborted','AbortError');
+  };
+
+  // 1. Pause — opponent "reads" what they wrote
+  await check(3000 + Math.random() * 4000);
+
+  // 2. Find where current and correct diverge
+  let commonLen = 0;
+  const minLen = Math.min(currentCode.length, correctCode.length);
+  while (commonLen < minLen && currentCode[commonLen] === correctCode[commonLen]) {
+    commonLen++;
+  }
+
+  // 3. Backspace slowly from end to divergence point
+  let text = currentCode;
+  const deleteCount = text.length - commonLen;
+  for (let d = 0; d < deleteCount; d++) {
+    text = text.slice(0, -1);
+    setCode(text);
+    await check(1500 + Math.random() * 2000); // 1.5–3.5s per backspace
+  }
+
+  // 4. Pause again — thinking about the correction
+  await check(2000 + Math.random() * 3000);
+
+  // 5. Retype the corrected tail slowly
+  const tail = correctCode.slice(commonLen);
+  for (const ch of tail) {
+    text += ch;
+    setCode(text);
+    // Slightly faster for spaces/newlines, slow for actual chars
+    const delay = ch === ' ' ? 400 + Math.random() * 600
+                : ch === '\n' ? 1000 + Math.random() * 1500
+                : 1800 + Math.random() * 1700; // 1.8–3.5s per real char
+    await check(delay);
+  }
+
+  // 6. Short review pause before resubmitting
+  await check(2500 + Math.random() * 3000);
+}
