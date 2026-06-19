@@ -3,13 +3,7 @@ import Editor from '@monaco-editor/react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import problems from '../problems';
 import API from '../api/axios';
-import {
-  typeInitialCode,
-  typeCarefulFix,
-  randomHumanName,
-  getBotSolution,
-  getBotWrongDraft,
-} from '../utils/botSimulator';
+import { runOpponentBattle, randomHumanName } from '../utils/botSimulator';
 
 // ── Animation CSS ─────────────────────────────────────────────────────────────
 const css = `
@@ -158,12 +152,9 @@ function Battle({ join = false }) {
 
   // ── Silent opponent fallback after MATCH_WAIT_MS ──────────────────────────
   const launchSilentOpponent = useCallback(() => {
-    const fakeName    = randomHumanName();
-    const wrongDraft  = getBotWrongDraft(problem);   // first attempt — has a bug
-    const correctCode = getBotSolution(problem);     // correct final version
-
-    // 50% of battles: opponent wins on re-submit; 50%: user still has time to win
-    const opponentWinsOnFix = Math.random() < 0.5;
+    const fakeName = randomHumanName();
+    // 50% chance opponent wins when they finally submit correct
+    const opponentWinsOnCorrect = Math.random() < 0.50;
 
     setOpponentName(fakeName);
     setMessages(p => [...p, `⚔️ ${fakeName} joined the battle!`]);
@@ -172,53 +163,46 @@ function Battle({ join = false }) {
       setBattleStarted(true);
       startCountdown();
 
-      const COUNTDOWN_MS = 4500; // wait for 3-2-1 + "BATTLE START"
-      abortRef.current   = new AbortController();
-      const signal       = abortRef.current.signal;
+      const COUNTDOWN_MS = 4500;
+      abortRef.current = new AbortController();
+      const signal = abortRef.current.signal;
 
-      // ── Phase 1: Type initial (wrong) draft slowly ──────────────────────
-      setTimeout(async () => {
-        try {
-          await typeInitialCode(wrongDraft, setOpponentCode, signal);
+      let wrongCount = 0;
 
-          // Small pause before first submit
-          await new Promise(r => setTimeout(r, 2000 + Math.random() * 3000));
-          if (signal.aborted) return;
+      setTimeout(() => {
+        runOpponentBattle(
+          problem,
+          setOpponentCode,
 
-          // ── Phase 2: First submission — always wrong ───────────────────
-          setOpponentSubmitted(true);
-          setMessages(p => [...p, `🏁 ${fakeName} submitted!`]);
-          setMessages(p => [...p, `❌ ${fakeName} got a wrong answer.`]);
-
-          // 5–8s pause before re-opening editor
-          await new Promise(r => setTimeout(r, 5000 + Math.random() * 3000));
-          if (signal.aborted) return;
-
-          setOpponentSubmitted(false);
-          setMessages(p => [...p, `✏️ ${fakeName} is fixing their solution...`]);
-
-          // ── Phase 3: Careful slow re-edit (1.5–3.5s per char) ─────────
-          await typeCarefulFix(wrongDraft, correctCode, setOpponentCode, signal);
-          if (signal.aborted) return;
-
-          // ── Phase 4: Final resubmission — always correct code ──────────
-          setOpponentSubmitted(true);
-          setMessages(p => [...p, `🏁 ${fakeName} resubmitted!`]);
-
-          if (!submittedRef.current && opponentWinsOnFix) {
+          // onWrongSubmit — called each time opponent submits wrong
+          (attemptNum) => {
+            wrongCount++;
+            setOpponentSubmitted(true);
+            setMessages(p => [...p, `🏁 ${fakeName} submitted!`]);
+            setMessages(p => [...p, `❌ ${fakeName} got a wrong answer.`]);
+            // After a short moment show them going back to edit
             setTimeout(() => {
-              if (signal.aborted) return;
-              setOpponentWon(true);
-              setMessages(p => [...p, `🏆 ${fakeName} got it right!`]);
-            }, 1500);
-          } else if (submittedRef.current) {
-            // user already won — no message needed
-          } else {
-            // opponent submitted correct but user still has time to finish
-            setMessages(p => [...p, `✅ ${fakeName} fixed it — can you finish in time?`]);
-          }
+              setOpponentSubmitted(false);
+              setMessages(p => [...p, `✏️ ${fakeName} is editing... (attempt ${attemptNum + 1})`]);
+            }, 3000);
+          },
 
-        } catch (_) { /* aborted — battle ended */ }
+          // onCorrectSubmit — final correct submission
+          () => {
+            setOpponentSubmitted(true);
+            setMessages(p => [...p, `🏁 ${fakeName} submitted!`]);
+            if (!submittedRef.current && opponentWinsOnCorrect) {
+              setTimeout(() => {
+                setOpponentWon(true);
+                setMessages(p => [...p, `🏆 ${fakeName} got it correct!`]);
+              }, 1200);
+            } else if (!submittedRef.current) {
+              setMessages(p => [...p, `✅ ${fakeName} fixed it — hurry up!`]);
+            }
+          },
+
+          signal
+        ).catch(() => {}); // swallow AbortError
       }, COUNTDOWN_MS);
 
     }, 1200);

@@ -1,250 +1,308 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// botSimulator.js — Human-like opponent typing engine
-// Zero references to "bot" anywhere visible to the user.
+// botSimulator.js — Fully realistic opponent simulation engine
+// The opponent is ALWAYS active. No idle periods. Every battle feels different.
+// Zero user-facing references to "bot" anywhere.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+// ── Utilities ─────────────────────────────────────────────────────────────────
+const rnd  = (lo, hi) => lo + Math.random() * (hi - lo);
+const rndI = (lo, hi) => Math.floor(rnd(lo, hi + 1));
 
-const check = (signal, ms) => new Promise((res, rej) => {
-  if (signal?.aborted) return rej(new DOMException('Aborted', 'AbortError'));
-  const t = setTimeout(() => {
+function pause(ms, signal) {
+  return new Promise((res, rej) => {
     if (signal?.aborted) return rej(new DOMException('Aborted', 'AbortError'));
-    res();
-  }, ms);
-  signal?.addEventListener('abort', () => { clearTimeout(t); rej(new DOMException('Aborted','AbortError')); }, { once: true });
-});
+    const t = setTimeout(res, ms);
+    signal?.addEventListener('abort', () => { clearTimeout(t); rej(new DOMException('Aborted', 'AbortError')); }, { once: true });
+  });
+}
 
-// ── Keyboard-proximity typos ──────────────────────────────────────────────────
-const ADJACENT = {
-  a:['s','q','z'], b:['v','n','g'], c:['v','x','d'], d:['s','f','e'],
-  e:['r','w','d'], f:['d','g','r'], g:['f','h','t'], h:['g','j','y'],
-  i:['u','o','k'], j:['h','k','u'], k:['j','l','i'], l:['k','o'],
-  m:['n','j','k'], n:['m','b','h'], o:['i','p','l'], p:['o','l'],
-  r:['e','t','f'], s:['a','d','w'], t:['r','y','g'], u:['y','i','h'],
-  v:['c','b','f'], w:['q','e','s'], x:['z','c','s'], y:['t','u','h'],
-  z:['a','x','s'],
+// ── Keyboard adjacency for realistic typos ────────────────────────────────────
+const ADJ = {
+  a:'sqz',b:'vng',c:'vxd',d:'sfe',e:'rwd',f:'dgr',g:'fht',h:'gjy',
+  i:'uok',j:'hku',k:'jli',l:'ko', m:'njk',n:'mbh',o:'ipl',p:'ol',
+  q:'wa', r:'etf',s:'adw',t:'ryg',u:'yih',v:'cbf',w:'qes',x:'zcs',
+  y:'tuh',z:'axs',
 };
-const nearbyKey = c => {
-  const pool = ADJACENT[c.toLowerCase()];
-  return pool ? pool[Math.floor(Math.random() * pool.length)] : 'x';
+const typo = c => {
+  const pool = ADJ[c.toLowerCase()];
+  return pool ? pool[rndI(0, pool.length - 1)] : ['x','y','z'][rndI(0,2)];
 };
 
-// Pause-before triggers
-const THINK_TRIGGERS = ['for ', 'while ', 'if ', 'elif ', 'return ', 'def '];
+// ── Skill presets ─────────────────────────────────────────────────────────────
+const SKILL = {
+  beginner:     { lo: 700,  hi: 1600, mistakeRate: 0.12, thinkMult: 2.2 },
+  intermediate: { lo: 300,  hi: 750,  mistakeRate: 0.06, thinkMult: 1.3 },
+  advanced:     { lo: 90,   hi: 320,  mistakeRate: 0.02, thinkMult: 0.7 },
+};
 
-// ── Phase 1: initial typing — moderate beginner speed (600–1400ms/char) ──────
-// Looks slow enough to feel human; fast enough to finish within ~60-90s
-export async function typeInitialCode(targetCode, setCode, signal) {
-  let text = '';
+// ── Core: type a string char-by-char with human realism ──────────────────────
+async function humanType(text, current, setCurrent, cfg, signal) {
+  // `current` = what's in editor right now (string ref)
+  // We type `text` into the editor, starting from `current`
+  // Returns the new editor content
 
-  // Thinking pause before starting (reading the problem)
-  await check(signal, 3000 + Math.random() * 4000);
+  // First: transition from current to text via char-level diff
+  // Find longest common prefix
+  let common = 0;
+  const minLen = Math.min(current.length, text.length);
+  while (common < minLen && current[common] === text[common]) common++;
 
-  for (let i = 0; i < targetCode.length; i++) {
-    if (signal?.aborted) return text;
-    const ch = targetCode[i];
-    const upcoming = targetCode.slice(i);
+  // Backspace from end of current down to common prefix
+  let buf = current;
+  const toDelete = buf.length - common;
+  if (toDelete > 0) {
+    // Pause before deleting (noticing the issue)
+    await pause(rnd(400, 1200) * cfg.thinkMult, signal);
+    for (let d = 0; d < toDelete; d++) {
+      buf = buf.slice(0, -1);
+      setCurrent(buf);
+      await pause(rnd(60, 180), signal); // fast backspace
+    }
+    await pause(rnd(300, 800), signal); // pause after deletion
+  }
+
+  // Type the new suffix char by char
+  const tail = text.slice(common);
+  const THINK_BEFORE = ['for ', 'while ', 'if ', 'elif ', 'return ', 'def ', ':\n'];
+
+  for (let i = 0; i < tail.length; i++) {
+    const ch = tail[i];
+    const upcoming = tail.slice(i);
 
     // Thinking pause before key constructs
-    for (const t of THINK_TRIGGERS) {
-      if (upcoming.startsWith(t) && text.length > 0) {
-        await check(signal, 1500 + Math.random() * 3000);
+    for (const t of THINK_BEFORE) {
+      if (upcoming.startsWith(t) && buf.length > 0) {
+        await pause(rnd(800, 2500) * cfg.thinkMult, signal);
         break;
       }
     }
 
-    // Random "stare at screen" pause (6% chance)
-    if (Math.random() < 0.06) await check(signal, 2000 + Math.random() * 4000);
+    // Random stare-at-screen pause (varies by skill)
+    if (Math.random() < 0.04 * cfg.thinkMult) {
+      await pause(rnd(1500, 5000) * cfg.thinkMult, signal);
+    }
 
-    // Typo (8% chance on real chars)
-    if (ch !== '\n' && ch !== ' ' && ch !== '\t' && Math.random() < 0.08) {
-      const wrong = nearbyKey(ch);
-      text += wrong; setCode(text);
-      await check(signal, 600 + Math.random() * 800);
-
-      // Notice mistake and backspace
-      await check(signal, 400 + Math.random() * 600);
-      text = text.slice(0, -1); setCode(text);
-      await check(signal, 300 + Math.random() * 400);
+    // Typo + correction
+    if (ch !== '\n' && ch !== ' ' && ch !== '\t' && Math.random() < cfg.mistakeRate) {
+      // Type wrong char(s)
+      const nWrong = Math.random() < 0.2 ? 2 : 1;
+      for (let w = 0; w < nWrong; w++) {
+        buf += typo(ch);
+        setCurrent(buf);
+        await pause(rnd(cfg.lo, cfg.hi), signal);
+      }
+      // Notice mistake, pause
+      await pause(rnd(200, 600), signal);
+      // Backspace
+      for (let w = 0; w < nWrong; w++) {
+        buf = buf.slice(0, -1);
+        setCurrent(buf);
+        await pause(rnd(60, 120), signal);
+      }
+      await pause(rnd(100, 300), signal);
     }
 
     // Type correct char
-    text += ch; setCode(text);
+    buf += ch;
+    setCurrent(buf);
 
-    // Per-char delay — slow beginner pace
-    let d = 600 + Math.random() * 800; // base 600–1400ms
-    if (ch === ':')  d += 800  + Math.random() * 1200;
-    if (ch === '\n') d += 1000 + Math.random() * 2000;
-    if (ch === '(')  d += 500  + Math.random() * 800;
-    if (ch === ',')  d += 300  + Math.random() * 600;
-    await check(signal, d);
+    // Per-char delay
+    let d = rnd(cfg.lo, cfg.hi);
+    if (ch === ':')  d += rnd(400, 1200);
+    if (ch === '\n') d += rnd(600, 1800);
+    if (ch === '(')  d += rnd(200, 600);
+    if (ch === ',')  d += rnd(150, 400);
+    if (ch === ' ')  d *= 0.5;
+    await pause(d, signal);
+
+    // Occasionally delete and retype the last word (second-guessing)
+    if (ch === ' ' && buf.length > 12 && Math.random() < cfg.mistakeRate * 1.5) {
+      const lastSp = buf.lastIndexOf(' ', buf.length - 2);
+      const rewindTo = lastSp >= 0 ? lastSp + 1 : 0;
+      const nDel = buf.length - rewindTo;
+      await pause(rnd(300, 700), signal);
+      for (let d2 = 0; d2 < nDel; d2++) { buf = buf.slice(0,-1); setCurrent(buf); await pause(rnd(60,120),signal); }
+      await pause(rnd(400, 1000) * cfg.thinkMult, signal);
+      const retype = text.slice(common + i - (nDel - 1), common + i + 1);
+      for (const rc of retype) { buf += rc; setCurrent(buf); await pause(rnd(cfg.lo, cfg.hi) * 0.9, signal); }
+    }
   }
-  return text;
+  return buf;
 }
 
-// ── Phase 2: slow careful re-edit (1500–3500ms/char) ─────────────────────────
-// Opponent carefully fixes their code after getting wrong answer.
-// Deletes the last portion, then retypes character by character very slowly.
-export async function typeCarefulFix(currentCode, correctCode, setCode, signal) {
-  // Pause — reading their wrong answer, figuring out the bug
-  await check(signal, 3000 + Math.random() * 4000);
+// ── Micro-activities between attempts (keep editor looking alive) ─────────────
+async function microActivity(currentCode, setCurrent, cfg, signal) {
+  if (!currentCode || currentCode.length < 5) return;
 
-  // Find divergence point between wrong and correct
-  let commonLen = 0;
-  const minLen = Math.min(currentCode.length, correctCode.length);
-  while (commonLen < minLen && currentCode[commonLen] === correctCode[commonLen]) commonLen++;
+  const action = rndI(0, 4);
 
-  // Delete back to divergence — slow, deliberate backspacing
-  let text = currentCode;
-  const toDelete = text.length - commonLen;
-  for (let d = 0; d < toDelete; d++) {
-    text = text.slice(0, -1);
-    setCode(text);
-    await check(signal, 1200 + Math.random() * 1800); // 1.2–3.0s per backspace
+  if (action === 0) {
+    // Add a comment then delete it
+    const comment = '\n    # hmm...';
+    let buf = currentCode;
+    for (const ch of comment) { buf += ch; setCurrent(buf); await pause(rnd(300,700),signal); }
+    await pause(rnd(1000,2500)*cfg.thinkMult, signal);
+    for (let d = 0; d < comment.length; d++) { buf = buf.slice(0,-1); setCurrent(buf); await pause(rnd(60,120),signal); }
+
+  } else if (action === 1) {
+    // Delete last line and retype it
+    const lines = currentCode.split('\n');
+    if (lines.length < 2) return;
+    const lastLine = lines[lines.length - 1];
+    let buf = currentCode;
+    const toDel = lastLine.length + 1;
+    for (let d = 0; d < toDel; d++) { buf = buf.slice(0,-1); setCurrent(buf); await pause(rnd(60,120),signal); }
+    await pause(rnd(800,2000)*cfg.thinkMult, signal);
+    const retype = '\n' + lastLine;
+    for (const ch of retype) { buf += ch; setCurrent(buf); await pause(rnd(cfg.lo,cfg.hi)*0.8,signal); }
+
+  } else if (action === 2) {
+    // Pause and scroll (simulate by brief think pause — nothing visible)
+    await pause(rnd(1000,3000)*cfg.thinkMult, signal);
+
+  } else if (action === 3) {
+    // Tweak a number or operator somewhere
+    const toDel = rndI(1,3);
+    let buf = currentCode;
+    const snap = buf.slice(-toDel);
+    for (let d = 0; d < toDel; d++) { buf = buf.slice(0,-1); setCurrent(buf); await pause(rnd(80,150),signal); }
+    await pause(rnd(500,1500)*cfg.thinkMult, signal);
+    for (const ch of snap) { buf += ch; setCurrent(buf); await pause(rnd(cfg.lo,cfg.hi),signal); }
+
+  } else {
+    // Just a long thinking pause
+    await pause(rnd(2000,5000)*cfg.thinkMult, signal);
   }
+}
 
-  // Pause — thinking about the correct logic
-  await check(signal, 2500 + Math.random() * 4000);
+// ── Attempt sequences per problem ────────────────────────────────────────────
+// Each array goes from worst → correct. Skill level picks how many steps to skip.
+const ATTEMPTS = {
+  1: [ // Two Sum
+    `def two_sum(nums, target):\n    for i in nums:\n        for j in nums:\n            if i + j == target:\n                return i, j`,
+    `def two_sum(nums, target):\n    for i in range(len(nums)):\n        for j in range(i+1, len(nums)):\n            if nums[i] + nums[j] == target:\n                return [i, j]`,
+    `def two_sum(nums, target):\n    seen = {}\n    for i, num in enumerate(nums):\n        complement = target - num\n        if complement in seen:\n            return [seen[complement], i]\n        seen[num] = i`,
+  ],
+  2: [ // Reverse String
+    `def reverse_string(s):\n    result = ''\n    i = len(s)\n    while i > 0:\n        i -= 1\n        result += s[i]\n    return result`,
+    `def reverse_string(s):\n    return s[::-1]`,
+  ],
+  3: [ // FizzBuzz
+    `def fizzbuzz(n):\n    if n % 3 == 0:\n        return 'Fizz'\n    if n % 5 == 0:\n        return 'Buzz'\n    return str(n)`,
+    `def fizzbuzz(n):\n    if n % 3 == 0 and n % 5 == 0:\n        return 'FizzBuzz'\n    if n % 3 == 0:\n        return 'Fizz'\n    if n % 5 == 0:\n        return 'Buzz'\n    return str(n)`,
+    `def fizzbuzz(n):\n    if n % 15 == 0:\n        return 'FizzBuzz'\n    elif n % 3 == 0:\n        return 'Fizz'\n    elif n % 5 == 0:\n        return 'Buzz'\n    else:\n        return str(n)`,
+  ],
+  4: [ // Palindrome
+    `def is_palindrome(s):\n    rev = ''\n    for ch in s:\n        rev = ch + rev\n    return rev`,
+    `def is_palindrome(s):\n    rev = ''\n    for ch in s:\n        rev = ch + rev\n    return s == rev`,
+    `def is_palindrome(s):\n    return s == s[::-1]`,
+  ],
+  5: [ // Find Max
+    `def find_max(nums):\n    max_val = 0\n    for num in nums:\n        if num > max_val:\n            max_val = num\n    return max_val`,
+    `def find_max(nums):\n    maximum = nums[0]\n    for num in nums:\n        if num > maximum:\n            maximum = num\n    return maximum`,
+  ],
+  6: [ // Count Vowels
+    `def count_vowels(s):\n    count = 0\n    vowels = 'aeiou'\n    for ch in s:\n        count += 1\n    return count`,
+    `def count_vowels(s):\n    count = 0\n    for ch in s:\n        if ch in 'aeiou':\n            count += 1\n    return count`,
+    `def count_vowels(s):\n    count = 0\n    for ch in s.lower():\n        if ch in 'aeiou':\n            count += 1\n    return count`,
+  ],
+  7: [ // Sum of List
+    `def sum_list(nums):\n    total = 0\n    for num in nums:\n        total = total + num\n    return total`,
+    `def sum_list(nums):\n    total = 0\n    for num in nums:\n        total += num\n    return total`,
+  ],
+  8: [ // Remove Duplicates
+    `def remove_duplicates(nums):\n    result = []\n    for n in nums:\n        if n not in result:\n            result.append(n)\n    return result`,
+    `def remove_duplicates(nums):\n    unique = list(set(nums))\n    return unique`,
+    `def remove_duplicates(nums):\n    return list(set(nums))`,
+  ],
+};
 
-  // Retype the fix — very slow, one char at a time
-  const tail = correctCode.slice(commonLen);
-  for (const ch of tail) {
-    text += ch; setCode(text);
+// Fallback for unknown problems
+const FALLBACK = [
+  `def solution(x):\n    result = x\n    return result`,
+  `def solution(x):\n    return x`,
+];
 
-    // Very slow: 1.5–3.5s per real char, faster for spaces/newlines
-    let d = ch === ' '  ? 500  + Math.random() * 800
-           : ch === '\n' ? 1200 + Math.random() * 1800
-           : 1500 + Math.random() * 2000; // 1.5–3.5s per letter
-
-    // Occasional long pause (thinking mid-fix)
-    if (Math.random() < 0.15) d += 3000 + Math.random() * 4000;
-
-    await check(signal, d);
-  }
-
-  // Final review pause before submitting
-  await check(signal, 2000 + Math.random() * 3000);
+function getAttempts(problem, skill) {
+  const all = ATTEMPTS[problem?.id] || FALLBACK;
+  if (skill === 'advanced')     return all.slice(-2);   // last 2 (fast)
+  if (skill === 'intermediate') return all.slice(-Math.min(3, all.length)); // last 3
+  return all;                                            // beginner: all attempts
 }
 
 // ── Human-sounding usernames ──────────────────────────────────────────────────
-const HUMAN_NAMES = [
-  'alex_07','rahul_py','sam_codes','dev_maya','arjun99',
-  'priya_dev','vikash_c','code_karan','sai_py','rohan_dev',
-  'py_ninja','mahesh_x','sneha_code','arun_dev','riya_07',
-  'coder_raj','python_sam','dev_aarav','ishaan_py','neha_x',
-  'yash_codes','tanvi_dev','harsh_py','divya_c','ankit_09',
-  'aditya_py','kiran_dev','nisha_c','suresh_07','meera_py',
+const NAMES = [
+  'alex_07','rahul_py','sam_codes','dev_maya','arjun99','priya_dev',
+  'vikash_c','code_karan','sai_py','rohan_dev','py_ninja','mahesh_x',
+  'sneha_code','arun_dev','riya_07','coder_raj','python_sam','dev_aarav',
+  'ishaan_py','neha_x','yash_codes','tanvi_dev','harsh_py','divya_c',
+  'ankit_09','aditya_py','kiran_dev','nisha_c','suresh_07','meera_py',
 ];
-export const randomHumanName = () =>
-  HUMAN_NAMES[Math.floor(Math.random() * HUMAN_NAMES.length)];
+export const randomHumanName = () => NAMES[rndI(0, NAMES.length - 1)];
 
-// ── Correct solutions per problem ─────────────────────────────────────────────
-export const BOT_SOLUTIONS = {
-  1: `def two_sum(nums, target):
-    seen = {}
-    for i, num in enumerate(nums):
-        complement = target - num
-        if complement in seen:
-            return [seen[complement], i]
-        seen[num] = i`,
+export function pickSkill() {
+  const r = Math.random();
+  if (r < 0.35) return 'beginner';
+  if (r < 0.72) return 'intermediate';
+  return 'advanced';
+}
 
-  2: `def reverse_string(s):
-    return s[::-1]`,
+// ── Main battle runner ────────────────────────────────────────────────────────
+/**
+ * runOpponentBattle
+ *
+ * Drives the opponent editor for the full battle duration.
+ * The editor is ALWAYS visibly active — typing, deleting, refactoring.
+ *
+ * @param {object}   problem         – problem object from problems.js
+ * @param {Function} setCode         – React state setter for opponent editor
+ * @param {Function} onWrongSubmit   – called with () when opponent submits wrong
+ * @param {Function} onCorrectSubmit – called with () when opponent submits correct
+ * @param {AbortSignal} signal       – abort when battle ends / component unmounts
+ */
+export async function runOpponentBattle(problem, setCode, onWrongSubmit, onCorrectSubmit, signal) {
+  const skill    = pickSkill();
+  const cfg      = SKILL[skill];
+  const attempts = getAttempts(problem, skill);
+  let editorContent = '';
 
-  3: `def fizzbuzz(n):
-    if n % 15 == 0:
-        return 'FizzBuzz'
-    elif n % 3 == 0:
-        return 'Fizz'
-    elif n % 5 == 0:
-        return 'Buzz'
-    else:
-        return str(n)`,
+  // Opening think: reading problem statement
+  await pause(rnd(2000, 4000) * cfg.thinkMult, signal);
 
-  4: `def is_palindrome(s):
-    return s == s[::-1]`,
+  for (let idx = 0; idx < attempts.length; idx++) {
+    const isLast = idx === attempts.length - 1;
+    const target = attempts[idx];
 
-  5: `def find_max(nums):
-    maximum = nums[0]
-    for num in nums[1:]:
-        if num > maximum:
-            maximum = num
-    return maximum`,
+    // ── Type this attempt (with full human realism) ──
+    editorContent = await humanType(target, editorContent, setCode, cfg, signal);
 
-  6: `def count_vowels(s):
-    count = 0
-    for ch in s.lower():
-        if ch in 'aeiou':
-            count += 1
-    return count`,
+    // ── Pause after finishing — reviewing code ──
+    await pause(rnd(1500, 3500) * cfg.thinkMult, signal);
 
-  7: `def sum_list(nums):
-    total = 0
-    for num in nums:
-        total += num
-    return total`,
+    // ── 1-3 micro-activities (looks like reviewing/tweaking) ──
+    const microCount = isLast ? rndI(0, 1) : rndI(1, 3);
+    for (let m = 0; m < microCount; m++) {
+      await microActivity(editorContent, setCode, cfg, signal);
+      // Sync editorContent after micro-activity (re-read from state via closure isn't possible,
+      // so we pass by ref through a wrapper)
+    }
 
-  8: `def remove_duplicates(nums):
-    return list(set(nums))`,
-};
+    if (isLast) {
+      // Final submission — correct
+      await pause(rnd(800, 2000), signal);
+      onCorrectSubmit();
+    } else {
+      // Wrong submission
+      onWrongSubmit(idx + 1);
 
-// Wrong first draft — missing the last key line (looks incomplete/wrong)
-export const BOT_WRONG_DRAFTS = {
-  1: `def two_sum(nums, target):
-    seen = {}
-    for i, num in enumerate(nums):
-        complement = target - num
-        if complement in seen:
-            return complement
-        seen[num] = i`,
+      // Pause after wrong — reads the error, thinks
+      await pause(rnd(3000, 7000) * cfg.thinkMult, signal);
 
-  2: `def reverse_string(s):
-    result = ''
-    for ch in s:
-        result = ch + result
-    return reslt`,
-
-  3: `def fizzbuzz(n):
-    if n % 3 == 0:
-        return 'Fizz'
-    elif n % 5 == 0:
-        return 'Buzz'
-    else:
-        return str(n)`,
-
-  4: `def is_palindrome(s):
-    rev = ''
-    for ch in s:
-        rev = ch + rev
-    return s == rev`,
-
-  5: `def find_max(nums):
-    maximum = 0
-    for num in nums:
-        if num > maximum:
-            maximum = num
-    return maximum`,
-
-  6: `def count_vowels(s):
-    count = 0
-    for ch in s:
-        if ch in 'aeiou':
-            count += 1
-    return count`,
-
-  7: `def sum_list(nums):
-    total = 0
-    for num in nums:
-        total = total + n
-    return total`,
-
-  8: `def remove_duplicates(nums):
-    result = []
-    for n in nums:
-        if n not in result:
-            result.append(n)
-    return reslt`,
-};
-
-export const getBotSolution  = problem => BOT_SOLUTIONS[problem?.id]   || `def solution():\n    pass`;
-export const getBotWrongDraft = problem => BOT_WRONG_DRAFTS[problem?.id] || getBotSolution(problem);
+      // More micro-activity before next attempt (shows active editing)
+      const extraMicro = rndI(1, 2);
+      for (let m = 0; m < extraMicro; m++) {
+        await microActivity(editorContent, setCode, cfg, signal);
+      }
+    }
+  }
+}
