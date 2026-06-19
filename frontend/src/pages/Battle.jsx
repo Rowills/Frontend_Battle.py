@@ -110,6 +110,7 @@ function Battle({ join = false }) {
 
   // ── Internal (not shown to user) ───────────────────────────────────────────
   const [realJoined,        setRealJoined]        = useState(false);
+  const [reviewing,         setReviewing]         = useState(false);
 
   // ── Refs ────────────────────────────────────────────────────────────────────
   const wsRef          = useRef(null);
@@ -330,7 +331,7 @@ function Battle({ join = false }) {
       <style>{css}</style>
 
       {/* ── Victory ── */}
-      {result === 'correct' && (
+      {result === 'correct' && !reviewing && (
         <>
           <Confetti/>
           <div style={S.overlay}>
@@ -340,13 +341,14 @@ function Battle({ join = false }) {
               <p style={S.victorySub}>Correct Answer! Amazing job!</p>
               <div style={{fontSize:28,marginBottom:20}}>⭐⭐⭐</div>
               <button style={S.victoryBtn} onClick={()=>navigate('/lobby')}>🎮 Play Again</button>
+              <button style={S.reviewBtn} onClick={()=>setReviewing(true)}>🔍 Review Code</button>
             </div>
           </div>
         </>
       )}
 
       {/* ── Defeat ── */}
-      {opponentWon && result !== 'correct' && (
+      {opponentWon && result !== 'correct' && !reviewing && (
         <div style={S.overlay}>
           <div style={S.defeatBox} className="victory-box">
             <div style={{fontSize:70,marginBottom:10}}>💀</div>
@@ -356,6 +358,18 @@ function Battle({ join = false }) {
             </p>
             <div style={{fontSize:28,marginBottom:20}}>🌑🌑🌑</div>
             <button style={S.defeatBtn} onClick={()=>navigate('/lobby')}>🔁 Try Again</button>
+            <button style={S.reviewBtn} onClick={()=>setReviewing(true)}>🔍 Review Code</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Review banner (shown when reviewing after win/loss) ── */}
+      {reviewing && (
+        <div style={S.reviewBanner}>
+          <span style={{fontSize:14}}>🔍 Reviewing battle code</span>
+          <div style={{display:'flex',gap:10}}>
+            <button style={S.reviewBackBtn} onClick={()=>navigate('/lobby')}>🎮 Play Again</button>
+            <button style={S.reviewCloseBtn} onClick={()=>setReviewing(false)}>✕ Close Review</button>
           </div>
         </div>
       )}
@@ -592,7 +606,7 @@ const S = {
   victorySub: { color:'#aaa', fontSize:16, marginBottom:15 },
   victoryBtn: { background:'linear-gradient(135deg,#6c63ff,#00d4aa)', border:'none',
     color:'white', padding:'14px 30px', borderRadius:25, fontSize:16, fontWeight:700,
-    cursor:'pointer', width:'100%' },
+    cursor:'pointer', width:'100%', marginBottom:10 },
   defeatBox: { background:'linear-gradient(135deg,#1a1a2e,#2a0a0a)', border:'2px solid #ff4757',
     borderRadius:30, padding:'40px 30px', textAlign:'center', width:'100%', maxWidth:420,
     boxShadow:'0 0 60px #ff475555' },
@@ -601,7 +615,18 @@ const S = {
   defeatSub: { color:'#aaa', fontSize:15, marginBottom:15 },
   defeatBtn: { background:'linear-gradient(135deg,#ff4757,#c0392b)', border:'none',
     color:'white', padding:'14px 30px', borderRadius:25, fontSize:16, fontWeight:700,
-    cursor:'pointer', width:'100%' },
+    cursor:'pointer', width:'100%', marginBottom:10 },
+  reviewBtn: { background:'transparent', border:'2px solid #00d4aa', color:'#00d4aa',
+    padding:'12px 30px', borderRadius:25, fontSize:14, fontWeight:700,
+    cursor:'pointer', width:'100%', marginTop:4 },
+  reviewBanner: { position:'fixed', top:0, left:0, right:0, zIndex:9999,
+    background:'linear-gradient(90deg,#1a1a2e,#0f0f1a)', borderBottom:'2px solid #00d4aa',
+    padding:'10px 20px', display:'flex', justifyContent:'space-between', alignItems:'center',
+    color:'#00d4aa', fontWeight:700 },
+  reviewBackBtn: { background:'linear-gradient(135deg,#6c63ff,#00d4aa)', border:'none',
+    color:'white', padding:'8px 18px', borderRadius:20, fontSize:13, fontWeight:700, cursor:'pointer' },
+  reviewCloseBtn: { background:'transparent', border:'1px solid #ff475788', color:'#ff4757',
+    padding:'8px 14px', borderRadius:20, fontSize:13, fontWeight:600, cursor:'pointer' },
 
   // Header
   warningBar: { background:'#ff475722', border:'1px solid #ff4757', color:'#ff4757',
