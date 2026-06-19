@@ -593,10 +593,11 @@ const S = {
 
   // Victory / Defeat
   overlay: { position:'fixed',top:0,left:0,right:0,bottom:0, background:'rgba(0,0,0,.85)',
-    display:'flex', alignItems:'center', justifyContent:'center', zIndex:9998, padding:20 },
+    display:'flex', alignItems:'flex-start', justifyContent:'center', zIndex:9998,
+    padding:'40px 20px', overflowY:'auto' },
   victoryBox: { background:'linear-gradient(135deg,#1a1a2e,#16213e)', border:'2px solid #00d4aa',
     borderRadius:30, padding:'40px 30px', textAlign:'center', width:'100%', maxWidth:420,
-    boxShadow:'0 0 60px #00d4aa55' },
+    boxShadow:'0 0 60px #00d4aa55', overflowY:'auto', maxHeight:'90vh' },
   victoryTitle: { fontSize:48, fontWeight:900,
     background:'linear-gradient(135deg,#6c63ff,#00d4aa)',
     WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', marginBottom:10 },
@@ -606,7 +607,7 @@ const S = {
     cursor:'pointer', width:'100%', marginBottom:10 },
   defeatBox: { background:'linear-gradient(135deg,#1a1a2e,#2a0a0a)', border:'2px solid #ff4757',
     borderRadius:30, padding:'40px 30px', textAlign:'center', width:'100%', maxWidth:420,
-    boxShadow:'0 0 60px #ff475555' },
+    boxShadow:'0 0 60px #ff475555', overflowY:'auto', maxHeight:'90vh' },
   defeatTitle: { fontSize:48, fontWeight:900, color:'#ff4757', marginBottom:10,
     textShadow:'0 0 20px #ff475799' },
   defeatSub: { color:'#aaa', fontSize:15, marginBottom:15 },
