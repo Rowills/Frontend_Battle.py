@@ -9,7 +9,6 @@ import {
   randomHumanName,
   pickSkillLevel,
   getSolveTime,
-  winChance,
   getBotSolution,
 } from '../utils/botSimulator';
 
@@ -163,7 +162,7 @@ function Battle({ join = false }) {
     const skill      = pickSkillLevel();
     const fakeName   = randomHumanName();
     const solveTime  = getSolveTime(problem?.difficulty, skill);
-    const winProb    = winChance(skill);
+    // winChance used indirectly via willWinAfterEdit roll
     const solution   = getBotSolution(problem);
 
     // Decide the battle outcome upfront
