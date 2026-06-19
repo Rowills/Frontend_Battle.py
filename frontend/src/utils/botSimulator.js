@@ -1,228 +1,144 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// botSimulator.js  —  Human-like opponent typing engine
-// Everything here is invisible to the user. Zero references to "bot".
+// botSimulator.js — Human-like opponent typing engine
+// Zero references to "bot" anywhere visible to the user.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-// ── Skill configs ─────────────────────────────────────────────────────────────
-export const SKILL = {
-  beginner: {
-    charDelay:    [95, 180],   // ms per character [min, max]
-    mistakeRate:  0.11,        // chance of typo per character
-    thinkScale:   2.0,         // multiplier on thinking pauses
-    randomPause:  0.05,        // chance of a random "stare at screen" pause
-    pauseRange:   [1800, 5000],
-    corrections:  0.35,        // chance of rewriting whole line after finishing it
-  },
-  intermediate: {
-    charDelay:    [55, 100],
-    mistakeRate:  0.06,
-    thinkScale:   1.2,
-    randomPause:  0.025,
-    pauseRange:   [800, 2500],
-    corrections:  0.15,
-  },
-  advanced: {
-    charDelay:    [28, 60],
-    mistakeRate:  0.025,
-    thinkScale:   0.75,
-    randomPause:  0.012,
-    pauseRange:   [300, 1200],
-    corrections:  0.05,
-  },
-};
+const check = (signal, ms) => new Promise((res, rej) => {
+  if (signal?.aborted) return rej(new DOMException('Aborted', 'AbortError'));
+  const t = setTimeout(() => {
+    if (signal?.aborted) return rej(new DOMException('Aborted', 'AbortError'));
+    res();
+  }, ms);
+  signal?.addEventListener('abort', () => { clearTimeout(t); rej(new DOMException('Aborted','AbortError')); }, { once: true });
+});
 
-// ── Keyboard-proximity typos ───────────────────────────────────────────────────
+// ── Keyboard-proximity typos ──────────────────────────────────────────────────
 const ADJACENT = {
-  a:['s','q','z'],  b:['v','n','g'],  c:['v','x','d'],  d:['s','f','e'],
-  e:['r','w','d'],  f:['d','g','r'],  g:['f','h','t'],  h:['g','j','y'],
-  i:['u','o','k'],  j:['h','k','u'],  k:['j','l','i'],  l:['k','o'],
-  m:['n','j','k'],  n:['m','b','h'],  o:['i','p','l'],  p:['o','l'],
-  r:['e','t','f'],  s:['a','d','w'],  t:['r','y','g'],  u:['y','i','h'],
-  v:['c','b','f'],  w:['q','e','s'],  x:['z','c','s'],  y:['t','u','h'],
+  a:['s','q','z'], b:['v','n','g'], c:['v','x','d'], d:['s','f','e'],
+  e:['r','w','d'], f:['d','g','r'], g:['f','h','t'], h:['g','j','y'],
+  i:['u','o','k'], j:['h','k','u'], k:['j','l','i'], l:['k','o'],
+  m:['n','j','k'], n:['m','b','h'], o:['i','p','l'], p:['o','l'],
+  r:['e','t','f'], s:['a','d','w'], t:['r','y','g'], u:['y','i','h'],
+  v:['c','b','f'], w:['q','e','s'], x:['z','c','s'], y:['t','u','h'],
   z:['a','x','s'],
 };
+const nearbyKey = c => {
+  const pool = ADJACENT[c.toLowerCase()];
+  return pool ? pool[Math.floor(Math.random() * pool.length)] : 'x';
+};
 
-function nearbyKey(char) {
-  const c = char.toLowerCase();
-  const pool = ADJACENT[c];
-  if (pool) return pool[Math.floor(Math.random() * pool.length)];
-  return ['x','y','z'][Math.floor(Math.random() * 3)];
-}
+// Pause-before triggers
+const THINK_TRIGGERS = ['for ', 'while ', 'if ', 'elif ', 'return ', 'def '];
 
-// Tokens that cause a human to pause and think
-const THINK_BEFORE = ['for ', 'while ', 'if ', 'elif ', 'return ', 'def ', ':\n', 'in '];
-
-// ── Core simulator ────────────────────────────────────────────────────────────
-/**
- * simulateHumanTyping
- * @param {string}   targetCode    – final code we want to appear
- * @param {Function} setCode       – React state setter for opponent editor
- * @param {string}   skill         – 'beginner' | 'intermediate' | 'advanced'
- * @param {AbortSignal} signal     – cancel when battle ends
- */
-export async function simulateHumanTyping(targetCode, setCode, skill = 'intermediate', signal) {
-  const cfg = SKILL[skill] || SKILL.intermediate;
-
-  const wait = async ms => {
-    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-    await sleep(ms);
-    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-  };
-
-  const charWait = () => {
-    const [lo, hi] = cfg.charDelay;
-    return lo + Math.random() * (hi - lo);
-  };
-
+// ── Phase 1: initial typing — moderate beginner speed (600–1400ms/char) ──────
+// Looks slow enough to feel human; fast enough to finish within ~60-90s
+export async function typeInitialCode(targetCode, setCode, signal) {
   let text = '';
 
-  // ── Opening think: reading the problem ────────────────────────────────────
-  await wait(2500 + Math.random() * 3500 * cfg.thinkScale);
+  // Thinking pause before starting (reading the problem)
+  await check(signal, 3000 + Math.random() * 4000);
 
-  const chars = [...targetCode]; // handle unicode safely
-  let i = 0;
-
-  while (i < chars.length) {
-    if (signal?.aborted) return;
-
-    const ch = chars[i];
+  for (let i = 0; i < targetCode.length; i++) {
+    if (signal?.aborted) return text;
+    const ch = targetCode[i];
     const upcoming = targetCode.slice(i);
 
-    // ── Thinking pause before certain keywords ────────────────────────────
-    for (const trigger of THINK_BEFORE) {
-      if (upcoming.startsWith(trigger) && text.length > 0) {
-        await wait((600 + Math.random() * 1800) * cfg.thinkScale);
+    // Thinking pause before key constructs
+    for (const t of THINK_TRIGGERS) {
+      if (upcoming.startsWith(t) && text.length > 0) {
+        await check(signal, 1500 + Math.random() * 3000);
         break;
       }
     }
 
-    // ── Random "stare at screen" pause ────────────────────────────────────
-    if (Math.random() < cfg.randomPause) {
-      const [lo, hi] = cfg.pauseRange;
-      await wait(lo + Math.random() * (hi - lo));
+    // Random "stare at screen" pause (6% chance)
+    if (Math.random() < 0.06) await check(signal, 2000 + Math.random() * 4000);
+
+    // Typo (8% chance on real chars)
+    if (ch !== '\n' && ch !== ' ' && ch !== '\t' && Math.random() < 0.08) {
+      const wrong = nearbyKey(ch);
+      text += wrong; setCode(text);
+      await check(signal, 600 + Math.random() * 800);
+
+      // Notice mistake and backspace
+      await check(signal, 400 + Math.random() * 600);
+      text = text.slice(0, -1); setCode(text);
+      await check(signal, 300 + Math.random() * 400);
     }
 
-    // ── Typo + correction ─────────────────────────────────────────────────
-    if (ch !== '\n' && ch !== ' ' && ch !== '\t' && Math.random() < cfg.mistakeRate) {
-      const extra = Math.random() < 0.25 ? 2 : 1; // sometimes two wrong chars
-      const bad = [];
+    // Type correct char
+    text += ch; setCode(text);
 
-      for (let e = 0; e < extra; e++) {
-        const wrong = nearbyKey(ch);
-        text += wrong;
-        bad.push(wrong);
-        setCode(text);
-        await wait(charWait());
-      }
-
-      // Pause — noticing the mistake
-      await wait(180 + Math.random() * 450);
-
-      // Backspace the mistakes
-      for (let e = 0; e < bad.length; e++) {
-        text = text.slice(0, -1);
-        setCode(text);
-        await wait(55 + Math.random() * 70);
-      }
-
-      await wait(80 + Math.random() * 180);
-    }
-
-    // ── Type correct character ────────────────────────────────────────────
-    text += ch;
-    setCode(text);
-
-    let d = charWait();
-    if (ch === ':')  d += 250 + Math.random() * 700;
-    if (ch === '(')  d += 100 + Math.random() * 350;
-    if (ch === '\n') d += 220 + Math.random() * 550;
-    if (ch === ',')  d += 80  + Math.random() * 200;
-    if (ch === '.')  d += 120 + Math.random() * 300;
-
-    await wait(d);
-    i++;
-
-    // ── Occasional mid-line correction (rewrite last word) ────────────────
-    if (ch === ' ' && text.length > 8 && Math.random() < cfg.corrections * 0.4) {
-      // Delete back to last space
-      const lastSpace = text.lastIndexOf(' ', text.length - 2);
-      const rewindTo = lastSpace >= 0 ? lastSpace + 1 : 0;
-      const deleted = text.length - rewindTo;
-
-      for (let d2 = 0; d2 < deleted; d2++) {
-        text = text.slice(0, -1);
-        setCode(text);
-        await wait(45 + Math.random() * 55);
-      }
-
-      await wait(300 + Math.random() * 700);
-
-      // Retype the word correctly
-      const correctWord = targetCode.slice(rewindTo, rewindTo + deleted);
-      for (const wch of correctWord) {
-        text += wch;
-        setCode(text);
-        await wait(charWait() * 0.85);
-      }
-    }
+    // Per-char delay — slow beginner pace
+    let d = 600 + Math.random() * 800; // base 600–1400ms
+    if (ch === ':')  d += 800  + Math.random() * 1200;
+    if (ch === '\n') d += 1000 + Math.random() * 2000;
+    if (ch === '(')  d += 500  + Math.random() * 800;
+    if (ch === ',')  d += 300  + Math.random() * 600;
+    await check(signal, d);
   }
+  return text;
+}
+
+// ── Phase 2: slow careful re-edit (1500–3500ms/char) ─────────────────────────
+// Opponent carefully fixes their code after getting wrong answer.
+// Deletes the last portion, then retypes character by character very slowly.
+export async function typeCarefulFix(currentCode, correctCode, setCode, signal) {
+  // Pause — reading their wrong answer, figuring out the bug
+  await check(signal, 3000 + Math.random() * 4000);
+
+  // Find divergence point between wrong and correct
+  let commonLen = 0;
+  const minLen = Math.min(currentCode.length, correctCode.length);
+  while (commonLen < minLen && currentCode[commonLen] === correctCode[commonLen]) commonLen++;
+
+  // Delete back to divergence — slow, deliberate backspacing
+  let text = currentCode;
+  const toDelete = text.length - commonLen;
+  for (let d = 0; d < toDelete; d++) {
+    text = text.slice(0, -1);
+    setCode(text);
+    await check(signal, 1200 + Math.random() * 1800); // 1.2–3.0s per backspace
+  }
+
+  // Pause — thinking about the correct logic
+  await check(signal, 2500 + Math.random() * 4000);
+
+  // Retype the fix — very slow, one char at a time
+  const tail = correctCode.slice(commonLen);
+  for (const ch of tail) {
+    text += ch; setCode(text);
+
+    // Very slow: 1.5–3.5s per real char, faster for spaces/newlines
+    let d = ch === ' '  ? 500  + Math.random() * 800
+           : ch === '\n' ? 1200 + Math.random() * 1800
+           : 1500 + Math.random() * 2000; // 1.5–3.5s per letter
+
+    // Occasional long pause (thinking mid-fix)
+    if (Math.random() < 0.15) d += 3000 + Math.random() * 4000;
+
+    await check(signal, d);
+  }
+
+  // Final review pause before submitting
+  await check(signal, 2000 + Math.random() * 3000);
 }
 
 // ── Human-sounding usernames ──────────────────────────────────────────────────
 const HUMAN_NAMES = [
-  'alex_07', 'rahul_py', 'sam_codes', 'dev_maya', 'arjun99',
-  'priya_dev', 'vikash_c', 'code_karan', 'sai_py', 'rohan_dev',
-  'py_ninja', 'mahesh_x', 'sneha_code', 'arun_dev', 'riya_07',
-  'coder_raj', 'python_sam', 'dev_aarav', 'ishaan_py', 'neha_x',
-  'yash_codes', 'tanvi_dev', 'harsh_py', 'divya_c', 'ankit_09',
+  'alex_07','rahul_py','sam_codes','dev_maya','arjun99',
+  'priya_dev','vikash_c','code_karan','sai_py','rohan_dev',
+  'py_ninja','mahesh_x','sneha_code','arun_dev','riya_07',
+  'coder_raj','python_sam','dev_aarav','ishaan_py','neha_x',
+  'yash_codes','tanvi_dev','harsh_py','divya_c','ankit_09',
+  'aditya_py','kiran_dev','nisha_c','suresh_07','meera_py',
 ];
+export const randomHumanName = () =>
+  HUMAN_NAMES[Math.floor(Math.random() * HUMAN_NAMES.length)];
 
-export function randomHumanName() {
-  return HUMAN_NAMES[Math.floor(Math.random() * HUMAN_NAMES.length)];
-}
-
-// ── Skill level picker (determines solve time + win chance) ──────────────────
-export function pickSkillLevel() {
-  const r = Math.random();
-  if (r < 0.30) return 'beginner';
-  if (r < 0.70) return 'intermediate';
-  return 'advanced';
-}
-
-// ── Solve time in seconds ─────────────────────────────────────────────────────
-const SOLVE_RANGES = {
-  easy: {
-    beginner:     [70,  120],
-    intermediate: [35,  70],
-    advanced:     [15,  40],
-  },
-  medium: {
-    beginner:     [140, 220],
-    intermediate: [80,  150],
-    advanced:     [40,  90],
-  },
-  hard: {
-    beginner:     [230, 295],
-    intermediate: [160, 230],
-    advanced:     [90,  170],
-  },
-};
-
-export function getSolveTime(difficulty, skillLevel) {
-  const key = (difficulty || 'Easy').toLowerCase();
-  const d   = key === 'easy' ? 'easy' : key === 'medium' ? 'medium' : 'hard';
-  const [lo, hi] = SOLVE_RANGES[d][skillLevel];
-  return Math.floor(Math.random() * (hi - lo + 1)) + lo;
-}
-
-// ── Win probability (if opponent submits before user) ────────────────────────
-export function winChance(skillLevel) {
-  return { beginner: 0.20, intermediate: 0.50, advanced: 0.78 }[skillLevel] ?? 0.45;
-}
-
-// ── Human-like solutions per problem ID ──────────────────────────────────────
+// ── Correct solutions per problem ─────────────────────────────────────────────
 export const BOT_SOLUTIONS = {
   1: `def two_sum(nums, target):
     seen = {}
@@ -272,54 +188,63 @@ export const BOT_SOLUTIONS = {
     return list(set(nums))`,
 };
 
-export function getBotSolution(problem) {
-  return BOT_SOLUTIONS[problem?.id] || `def solution():\n    pass`;
-}
+// Wrong first draft — missing the last key line (looks incomplete/wrong)
+export const BOT_WRONG_DRAFTS = {
+  1: `def two_sum(nums, target):
+    seen = {}
+    for i, num in enumerate(nums):
+        complement = target - num
+        if complement in seen:
+            return complement
+        seen[num] = i`,
 
-// ── Slow re-edit after wrong answer ──────────────────────────────────────────
-// Types character-by-character with 1.5–3.5s gaps — looks like careful review
-export async function simulateSlowReEdit(currentCode, correctCode, setCode, abortSignal) {
-  const waitMs = ms => new Promise(r => setTimeout(r, ms));
-  const check  = async ms => {
-    if (abortSignal?.aborted) throw new DOMException('Aborted','AbortError');
-    await waitMs(ms);
-    if (abortSignal?.aborted) throw new DOMException('Aborted','AbortError');
-  };
+  2: `def reverse_string(s):
+    result = ''
+    for ch in s:
+        result = ch + result
+    return reslt`,
 
-  // 1. Pause — opponent "reads" what they wrote
-  await check(3000 + Math.random() * 4000);
+  3: `def fizzbuzz(n):
+    if n % 3 == 0:
+        return 'Fizz'
+    elif n % 5 == 0:
+        return 'Buzz'
+    else:
+        return str(n)`,
 
-  // 2. Find where current and correct diverge
-  let commonLen = 0;
-  const minLen = Math.min(currentCode.length, correctCode.length);
-  while (commonLen < minLen && currentCode[commonLen] === correctCode[commonLen]) {
-    commonLen++;
-  }
+  4: `def is_palindrome(s):
+    rev = ''
+    for ch in s:
+        rev = ch + rev
+    return s == rev`,
 
-  // 3. Backspace slowly from end to divergence point
-  let text = currentCode;
-  const deleteCount = text.length - commonLen;
-  for (let d = 0; d < deleteCount; d++) {
-    text = text.slice(0, -1);
-    setCode(text);
-    await check(1500 + Math.random() * 2000); // 1.5–3.5s per backspace
-  }
+  5: `def find_max(nums):
+    maximum = 0
+    for num in nums:
+        if num > maximum:
+            maximum = num
+    return maximum`,
 
-  // 4. Pause again — thinking about the correction
-  await check(2000 + Math.random() * 3000);
+  6: `def count_vowels(s):
+    count = 0
+    for ch in s:
+        if ch in 'aeiou':
+            count += 1
+    return count`,
 
-  // 5. Retype the corrected tail slowly
-  const tail = correctCode.slice(commonLen);
-  for (const ch of tail) {
-    text += ch;
-    setCode(text);
-    // Slightly faster for spaces/newlines, slow for actual chars
-    const delay = ch === ' ' ? 400 + Math.random() * 600
-                : ch === '\n' ? 1000 + Math.random() * 1500
-                : 1800 + Math.random() * 1700; // 1.8–3.5s per real char
-    await check(delay);
-  }
+  7: `def sum_list(nums):
+    total = 0
+    for num in nums:
+        total = total + n
+    return total`,
 
-  // 6. Short review pause before resubmitting
-  await check(2500 + Math.random() * 3000);
-}
+  8: `def remove_duplicates(nums):
+    result = []
+    for n in nums:
+        if n not in result:
+            result.append(n)
+    return reslt`,
+};
+
+export const getBotSolution  = problem => BOT_SOLUTIONS[problem?.id]   || `def solution():\n    pass`;
+export const getBotWrongDraft = problem => BOT_WRONG_DRAFTS[problem?.id] || getBotSolution(problem);

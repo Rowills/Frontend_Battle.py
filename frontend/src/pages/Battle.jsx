@@ -4,12 +4,11 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import problems from '../problems';
 import API from '../api/axios';
 import {
-  simulateHumanTyping,
-  simulateSlowReEdit,
+  typeInitialCode,
+  typeCarefulFix,
   randomHumanName,
-  pickSkillLevel,
-  getSolveTime,
   getBotSolution,
+  getBotWrongDraft,
 } from '../utils/botSimulator';
 
 // ── Animation CSS ─────────────────────────────────────────────────────────────
@@ -159,79 +158,68 @@ function Battle({ join = false }) {
 
   // ── Silent opponent fallback after MATCH_WAIT_MS ──────────────────────────
   const launchSilentOpponent = useCallback(() => {
-    const skill      = pickSkillLevel();
-    const fakeName   = randomHumanName();
-    const solveTime  = getSolveTime(problem?.difficulty, skill);
-    // winChance used indirectly via willWinAfterEdit roll
-    const solution   = getBotSolution(problem);
+    const fakeName    = randomHumanName();
+    const wrongDraft  = getBotWrongDraft(problem);   // first attempt — has a bug
+    const correctCode = getBotSolution(problem);     // correct final version
 
-    // Decide the battle outcome upfront
-    // "correctWin"  — bot edits wrong → gets correct → wins
-    // "wrongTwice"  — bot edits wrong → still wrong (or correct but too late)
-    const outcomeRoll = Math.random();
-    const willWinAfterEdit = outcomeRoll < 0.45; // 45% chance bot corrects & wins
+    // 50% of battles: opponent wins on re-submit; 50%: user still has time to win
+    const opponentWinsOnFix = Math.random() < 0.5;
 
     setOpponentName(fakeName);
     setMessages(p => [...p, `⚔️ ${fakeName} joined the battle!`]);
 
-    // Small "found player" delay — feels natural
     setTimeout(() => {
       setBattleStarted(true);
       startCountdown();
 
-      // Typing sim starts after 3-2-1 countdown (≈4.5s)
-      const COUNTDOWN_MS = 4500;
+      const COUNTDOWN_MS = 4500; // wait for 3-2-1 + "BATTLE START"
+      abortRef.current   = new AbortController();
+      const signal       = abortRef.current.signal;
 
-      abortRef.current = new AbortController();
-      const signal = abortRef.current.signal;
+      // ── Phase 1: Type initial (wrong) draft slowly ──────────────────────
+      setTimeout(async () => {
+        try {
+          await typeInitialCode(wrongDraft, setOpponentCode, signal);
 
-      // Phase 1: type the initial (possibly imperfect) code
-      setTimeout(() => {
-        simulateHumanTyping(solution, setOpponentCode, skill, signal).catch(() => {});
-      }, COUNTDOWN_MS);
-
-      // Phase 2: first submission (always wrong — triggers re-edit drama)
-      const firstSubmitMs = COUNTDOWN_MS + solveTime * 1000;
-      setTimeout(() => {
-        if (signal.aborted) return;
-        setOpponentSubmitted(true);
-        setMessages(p => [...p, `🏁 ${fakeName} submitted!`]);
-        setMessages(p => [...p, `❌ ${fakeName} got a wrong answer.`]);
-
-        // Phase 3: opponent re-opens editor and edits slowly
-        setTimeout(() => {
+          // Small pause before first submit
+          await new Promise(r => setTimeout(r, 2000 + Math.random() * 3000));
           if (signal.aborted) return;
-          setOpponentSubmitted(false); // back to editing
-          setMessages(p => [...p, `✏️ ${fakeName} is editing their solution...`]);
 
-          // Slow re-edit: backspace + careful retyping (1.8–3.5s per char)
-          const currentCodeSnap = solution; // snapshot of what's visible
-          const correctedCode   = solution; // same solution — just re-typed carefully
+          // ── Phase 2: First submission — always wrong ───────────────────
+          setOpponentSubmitted(true);
+          setMessages(p => [...p, `🏁 ${fakeName} submitted!`]);
+          setMessages(p => [...p, `❌ ${fakeName} got a wrong answer.`]);
 
-          simulateSlowReEdit(currentCodeSnap, correctedCode, setOpponentCode, signal)
-            .then(() => {
+          // 5–8s pause before re-opening editor
+          await new Promise(r => setTimeout(r, 5000 + Math.random() * 3000));
+          if (signal.aborted) return;
+
+          setOpponentSubmitted(false);
+          setMessages(p => [...p, `✏️ ${fakeName} is fixing their solution...`]);
+
+          // ── Phase 3: Careful slow re-edit (1.5–3.5s per char) ─────────
+          await typeCarefulFix(wrongDraft, correctCode, setOpponentCode, signal);
+          if (signal.aborted) return;
+
+          // ── Phase 4: Final resubmission — always correct code ──────────
+          setOpponentSubmitted(true);
+          setMessages(p => [...p, `🏁 ${fakeName} resubmitted!`]);
+
+          if (!submittedRef.current && opponentWinsOnFix) {
+            setTimeout(() => {
               if (signal.aborted) return;
+              setOpponentWon(true);
+              setMessages(p => [...p, `🏆 ${fakeName} got it right!`]);
+            }, 1500);
+          } else if (submittedRef.current) {
+            // user already won — no message needed
+          } else {
+            // opponent submitted correct but user still has time to finish
+            setMessages(p => [...p, `✅ ${fakeName} fixed it — can you finish in time?`]);
+          }
 
-              // Phase 4: second submission
-              setOpponentSubmitted(true);
-              setMessages(p => [...p, `🏁 ${fakeName} resubmitted!`]);
-
-              if (!submittedRef.current && willWinAfterEdit) {
-                // Bot corrects and wins
-                setTimeout(() => {
-                  if (signal.aborted) return;
-                  setOpponentWon(true);
-                  setMessages(p => [...p, `🏆 ${fakeName} got it right this time!`]);
-                }, 1500);
-              } else {
-                // Bot still wrong — or user already won
-                setMessages(p => [...p, `❌ ${fakeName} got it wrong again.`]);
-              }
-            })
-            .catch(() => {});
-
-        }, 4000 + Math.random() * 3000); // 4–7s pause before starting re-edit
-      }, firstSubmitMs);
+        } catch (_) { /* aborted — battle ended */ }
+      }, COUNTDOWN_MS);
 
     }, 1200);
   }, [problem, startCountdown]);
