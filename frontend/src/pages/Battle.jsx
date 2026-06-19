@@ -168,8 +168,6 @@ function Battle({ join = false }) {
       abortRef.current = new AbortController();
       const signal = abortRef.current.signal;
 
-      let wrongCount = 0;
-
       setTimeout(() => {
         runOpponentBattle(
           problem,
@@ -177,7 +175,6 @@ function Battle({ join = false }) {
 
           // onWrongSubmit — called each time opponent submits wrong
           (attemptNum) => {
-            wrongCount++;
             setOpponentSubmitted(true);
             setMessages(p => [...p, `🏁 ${fakeName} submitted!`]);
             setMessages(p => [...p, `❌ ${fakeName} got a wrong answer.`]);
