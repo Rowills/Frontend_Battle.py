@@ -274,12 +274,12 @@ export function pickSkill() { return 'intermediate'; }
 export async function runOpponentBattle(problem, setCode, onWrongSubmit, onCorrectSubmit, signal) {
   const attempts   = ATTEMPTS[problem?.id] || FALLBACK;
   const difficulty = DIFFICULTY[problem?.id] || 'easy';
-  const [rLo, rHi] = READING_TIME[difficulty];
+  const [readLo, readHi] = READING_TIME[difficulty];
   const personality = createPersonality();
   let editorContent = '';
 
-  // ── PHASE 1: Tiny start delay (~80ms) ──
-  await pause(rnd(60, 100), signal);
+  // ── PHASE 1: Reading the problem (~10s silence) ──
+  await pause(rnd(readLo, readHi), signal);
 
   // ── PHASE 2 + 3 + 4: Code, review, submit ──
   for (let idx = 0; idx < attempts.length; idx++) {
