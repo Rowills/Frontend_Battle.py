@@ -29,11 +29,11 @@ const typo = c => {
   return pool ? pool[rndI(0, pool.length - 1)] : 'x';
 };
 
-// ── Single speed profile: fast intermediate ───────────────────────────────────
+// ── Single speed profile: ultra-fast intermediate ────────────────────────────
 const CFG = {
-  lo: 50,
-  hi: 110,
-  mistakeRate: 0.025,
+  lo: 10,
+  hi: 22,
+  mistakeRate: 0.018,
 };
 
 // ── Core: type from `current` to `text` via diff ─────────────────────────────
@@ -44,51 +44,41 @@ async function humanType(text, current, setCode, signal) {
 
   let buf = current;
 
-  // Backspace to divergence point
+  // Backspace to divergence point — fast
   const toDelete = buf.length - common;
   if (toDelete > 0) {
-    await pause(rnd(150, 350), signal);
+    await pause(rnd(15, 40), signal);
     for (let d = 0; d < toDelete; d++) {
       buf = buf.slice(0, -1);
       setCode(buf);
-      await pause(rnd(40, 80), signal);
+      await pause(rnd(8, 18), signal);
     }
-    await pause(rnd(80, 200), signal);
+    await pause(rnd(10, 30), signal);
   }
 
   // Type new suffix
   const tail = text.slice(common);
-  const THINK_AT = ['for ', 'while ', 'if ', 'elif ', 'return ', 'def '];
 
   for (let i = 0; i < tail.length; i++) {
     const ch = tail[i];
-    const upcoming = tail.slice(i);
 
-    // Micro-think before structural keywords
-    for (const kw of THINK_AT) {
-      if (upcoming.startsWith(kw) && buf.length > 0) {
-        await pause(rnd(120, 300), signal);
-        break;
-      }
-    }
-
-    // Rare typo + instant correction
+    // Rare typo + instant correction (no pause before keywords)
     if (ch !== '\n' && ch !== ' ' && ch !== '\t' && Math.random() < CFG.mistakeRate) {
       buf += typo(ch);
       setCode(buf);
       await pause(rnd(CFG.lo, CFG.hi), signal);
       buf = buf.slice(0, -1);
       setCode(buf);
-      await pause(rnd(40, 80), signal);
+      await pause(rnd(8, 15), signal);
     }
 
     buf += ch;
     setCode(buf);
 
     let d = rnd(CFG.lo, CFG.hi);
-    if (ch === ':')  d += rnd(80, 200);
-    if (ch === '\n') d += rnd(100, 250);
-    if (ch === ' ')  d *= 0.6;
+    if (ch === '\n') d += rnd(15, 40); // newline: tiny extra pause
+    if (ch === ' ')  d  = rnd(5, 12);  // spaces are instant
+    if (ch === ':')  d += rnd(10, 25);
     await pause(d, signal);
   }
 
@@ -105,22 +95,22 @@ async function quickEdit(currentCode, setCode, signal) {
   const lastLine = lines[lines.length - 1];
   let buf = currentCode;
 
-  // Delete last line fast
+  // Delete last line — rapid
   const toDel = lastLine.length + 1;
   for (let d = 0; d < toDel; d++) {
     buf = buf.slice(0, -1);
     setCode(buf);
-    await pause(rnd(40, 70), signal);
+    await pause(rnd(8, 16), signal);
   }
 
-  await pause(rnd(100, 250), signal);
+  await pause(rnd(15, 40), signal);
 
-  // Retype it immediately
+  // Retype instantly
   const retype = '\n' + lastLine;
   for (const ch of retype) {
     buf += ch;
     setCode(buf);
-    await pause(rnd(CFG.lo, CFG.hi) * 0.8, signal);
+    await pause(rnd(CFG.lo, CFG.hi), signal);
   }
 
   return buf;
@@ -185,27 +175,25 @@ export async function runOpponentBattle(problem, setCode, onWrongSubmit, onCorre
   const attempts = ATTEMPTS[problem?.id] || FALLBACK;
   let editorContent = '';
 
-  // Read problem — very short, then go
-  await pause(rnd(150, 300), signal);
+  // Glance at problem — then immediately start
+  await pause(rnd(30, 60), signal);
 
   for (let idx = 0; idx < attempts.length; idx++) {
     const isLast = idx === attempts.length - 1;
 
-    // Type this attempt
+    // Type this attempt at full speed
     editorContent = await humanType(attempts[idx], editorContent, setCode, signal);
 
-    // Quick review of own code
-    await pause(rnd(300, 700), signal);
+    // Tiny review — blink and submit
+    await pause(rnd(50, 150), signal);
 
     if (isLast) {
-      await pause(rnd(150, 400), signal);
       onCorrectSubmit();
     } else {
-      // Submit wrong — saw the error, immediately fix
+      // Wrong — instantly back to editing
       onWrongSubmit(idx + 1);
-      await pause(rnd(600, 1400), signal);
+      await pause(rnd(80, 200), signal);
       editorContent = await quickEdit(editorContent, setCode, signal);
-      await pause(rnd(150, 400), signal);
     }
   }
 }
