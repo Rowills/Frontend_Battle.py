@@ -199,11 +199,11 @@ const DIFFICULTY = {
   7: 'easy',   8: 'medium',
 };
 
-// Reading time by difficulty before first keystroke
+// Reading time by difficulty before first keystroke (~10s base wait)
 const READING_TIME = {
-  easy:   [2000,  4000],
-  medium: [4000,  8000],
-  hard:   [8000, 15000],
+  easy:   [8000,  12000],
+  medium: [10000, 15000],
+  hard:   [13000, 20000],
 };
 
 // ── Attempt sequences per problem ────────────────────────────────────────────
@@ -278,9 +278,8 @@ export async function runOpponentBattle(problem, setCode, onWrongSubmit, onCorre
   const personality = createPersonality();
   let editorContent = '';
 
-  // ── PHASE 1: Reading the problem ──
-  // Completely silent — simulating human reading time
-  await pause(rnd(rLo, rHi), signal);
+  // ── PHASE 1: Tiny start delay (~80ms) ──
+  await pause(rnd(60, 100), signal);
 
   // ── PHASE 2 + 3 + 4: Code, review, submit ──
   for (let idx = 0; idx < attempts.length; idx++) {
