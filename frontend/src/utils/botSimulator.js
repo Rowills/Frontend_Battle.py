@@ -1,6 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// botSimulator.js — Competitive intermediate bot
-// Fast, focused, always active. Feels like a real motivated Python student.
+// botSimulator.js — Realistic human programmer simulation
+// Natural rhythm: variable speed, real hesitation, genuine corrections.
+// Easy: ~5-15s  |  Medium: ~15-40s  |  Hard: ~30-90s
 // ─────────────────────────────────────────────────────────────────────────────
 
 const rnd  = (lo, hi) => lo + Math.random() * (hi - lo);
@@ -17,76 +18,119 @@ function pause(ms, signal) {
   });
 }
 
-// ── Keyboard adjacency for realistic (rare) typos ─────────────────────────────
+// ── Keyboard adjacency map for realistic typos ────────────────────────────────
 const ADJ = {
-  a:'sqz',b:'vng',c:'vxd',d:'sfe',e:'rwd',f:'dgr',g:'fht',h:'gjy',
-  i:'uok',j:'hku',k:'jli',l:'ko', m:'njk',n:'mbh',o:'ipl',p:'ol',
-  q:'wa', r:'etf',s:'adw',t:'ryg',u:'yih',v:'cbf',w:'qes',x:'zcs',
-  y:'tuh',z:'axs',
+  a:'sqz', b:'vng', c:'vxd', d:'sfe', e:'rwd', f:'dgr', g:'fht', h:'gjy',
+  i:'uok', j:'hku', k:'jli', l:'ko',  m:'njk', n:'mbh', o:'ipl', p:'ol',
+  q:'wa',  r:'etf', s:'adw', t:'ryg', u:'yih', v:'cbf', w:'qes', x:'zcs',
+  y:'tuh', z:'axs',
 };
 const typo = c => {
   const pool = ADJ[c.toLowerCase()];
   return pool ? pool[rndI(0, pool.length - 1)] : 'x';
 };
 
-// ── Single speed profile: ultra-fast intermediate ────────────────────────────
-const CFG = {
-  lo: 10,
-  hi: 22,
-  mistakeRate: 0.018,
-};
+// ── Lines that trigger a genuine thinking pause before them ──────────────────
+const HARD_LINES = [
+  'for ', 'while ', 'if ', 'elif ', 'else:', 'return ',
+  'def ', 'enumerate', 'range(', 'complement', 'seen[',
+];
 
-// ── Core: type from `current` to `text` via diff ─────────────────────────────
+// ── Speed bursts: humans naturally speed up mid-word then slow again ──────────
+function charDelay(ch, burstMode) {
+  if (ch === '\n')  return rnd(150, 350);          // newline — pause to think
+  if (ch === ' ')   return rnd(40, 80);             // space — quick
+  if (ch === ':')   return rnd(100, 200);           // colon — end of statement
+  if (ch === '(')   return rnd(60, 130);
+  if (ch === ',')   return rnd(50, 100);
+  if (burstMode)    return rnd(35, 65);             // mid-word burst
+  return rnd(60, 120);                              // normal char
+}
+
+// ── Core typing engine ────────────────────────────────────────────────────────
 async function humanType(text, current, setCode, signal) {
+  // Find longest common prefix (don't retype what's already there)
   let common = 0;
   const minLen = Math.min(current.length, text.length);
   while (common < minLen && current[common] === text[common]) common++;
 
   let buf = current;
 
-  // Backspace to divergence point — fast
+  // ── Backspace back to divergence point ──
   const toDelete = buf.length - common;
   if (toDelete > 0) {
-    await pause(rnd(15, 40), signal);
+    await pause(rnd(300, 600), signal); // notice the mistake
     for (let d = 0; d < toDelete; d++) {
       buf = buf.slice(0, -1);
       setCode(buf);
-      await pause(rnd(8, 18), signal);
+      await pause(rnd(50, 100), signal); // backspace delay
     }
-    await pause(rnd(10, 30), signal);
+    await pause(rnd(200, 500), signal); // settle before retyping
   }
 
-  // Type new suffix
+  // ── Type the new suffix ──
   const tail = text.slice(common);
+  let burstMode  = false;
+  let burstCount = 0;
 
   for (let i = 0; i < tail.length; i++) {
-    const ch = tail[i];
+    const ch      = tail[i];
+    const lineAhead = tail.slice(i);
 
-    // Rare typo + instant correction (no pause before keywords)
-    if (ch !== '\n' && ch !== ' ' && ch !== '\t' && Math.random() < CFG.mistakeRate) {
-      buf += typo(ch);
-      setCode(buf);
-      await pause(rnd(CFG.lo, CFG.hi), signal);
-      buf = buf.slice(0, -1);
-      setCode(buf);
-      await pause(rnd(8, 15), signal);
+    // ── Thinking pause before important constructs ──
+    if (ch !== ' ' && ch !== '\t') {
+      for (const kw of HARD_LINES) {
+        if (lineAhead.startsWith(kw) && buf.length > 0) {
+          await pause(rnd(400, 1200), signal);
+          break;
+        }
+      }
     }
 
+    // ── Random "staring at screen" pause (rare, feels very human) ──
+    if (Math.random() < 0.015) {
+      await pause(rnd(1000, 3000), signal);
+    }
+
+    // ── Speed bursts: type a few chars fast, then return to normal ──
+    if (!burstMode && Math.random() < 0.12) {
+      burstMode  = true;
+      burstCount = rndI(4, 10);
+    }
+    if (burstMode) {
+      burstCount--;
+      if (burstCount <= 0) burstMode = false;
+    }
+
+    // ── Typo + correction ──
+    if (ch !== '\n' && ch !== ' ' && ch !== '\t' && Math.random() < 0.04) {
+      // Type wrong char
+      buf += typo(ch);
+      setCode(buf);
+      await pause(rnd(60, 130), signal);
+
+      // Notice the mistake — pause
+      await pause(rnd(800, 1800), signal);
+
+      // Backspace it
+      buf = buf.slice(0, -1);
+      setCode(buf);
+      await pause(rnd(50, 100), signal);
+      await pause(rnd(100, 300), signal); // re-focus
+    }
+
+    // ── Type the correct character ──
     buf += ch;
     setCode(buf);
-
-    let d = rnd(CFG.lo, CFG.hi);
-    if (ch === '\n') d += rnd(15, 40); // newline: tiny extra pause
-    if (ch === ' ')  d  = rnd(5, 12);  // spaces are instant
-    if (ch === ':')  d += rnd(10, 25);
-    await pause(d, signal);
+    await pause(charDelay(ch, burstMode), signal);
   }
 
   return buf;
 }
 
-// ── Quick active edit between attempts (visible refactoring, no filler) ───────
-async function quickEdit(currentCode, setCode, signal) {
+// ── Realistic edit between wrong and correct attempt ─────────────────────────
+// Deletes the last line and retypes it — looks like genuine refactoring
+async function rewriteLastLine(currentCode, setCode, signal) {
   if (!currentCode || currentCode.length < 10) return currentCode;
 
   const lines = currentCode.split('\n');
@@ -95,61 +139,67 @@ async function quickEdit(currentCode, setCode, signal) {
   const lastLine = lines[lines.length - 1];
   let buf = currentCode;
 
-  // Delete last line — rapid
+  // Think about what went wrong
+  await pause(rnd(600, 1500), signal);
+
+  // Delete last line
   const toDel = lastLine.length + 1;
   for (let d = 0; d < toDel; d++) {
     buf = buf.slice(0, -1);
     setCode(buf);
-    await pause(rnd(8, 16), signal);
+    await pause(rnd(50, 90), signal);
   }
 
-  await pause(rnd(15, 40), signal);
+  // Brief pause — planning the fix
+  await pause(rnd(400, 900), signal);
 
-  // Retype instantly
+  // Retype
   const retype = '\n' + lastLine;
   for (const ch of retype) {
     buf += ch;
     setCode(buf);
-    await pause(rnd(CFG.lo, CFG.hi), signal);
+    await pause(charDelay(ch, false), signal);
   }
 
   return buf;
 }
 
-// ── Attempt sequences per problem: wrong first (if any), then correct ─────────
+// ── Attempt sequences: wrong draft(s) then correct ───────────────────────────
 const ATTEMPTS = {
-  1: [ // Two Sum
+  1: [ // Two Sum — medium difficulty, 2 attempts
     `def two_sum(nums, target):\n    for i in range(len(nums)):\n        for j in range(i+1, len(nums)):\n            if nums[i] + nums[j] == target:\n                return [i, j]`,
     `def two_sum(nums, target):\n    seen = {}\n    for i, num in enumerate(nums):\n        complement = target - num\n        if complement in seen:\n            return [seen[complement], i]\n        seen[num] = i`,
   ],
-  2: [ // Reverse String
+  2: [ // Reverse String — easy, 1 attempt
     `def reverse_string(s):\n    return s[::-1]`,
   ],
-  3: [ // FizzBuzz
+  3: [ // FizzBuzz — medium, 2 attempts
     `def fizzbuzz(n):\n    if n % 3 == 0 and n % 5 == 0:\n        return 'FizzBuzz'\n    if n % 3 == 0:\n        return 'Fizz'\n    if n % 5 == 0:\n        return 'Buzz'\n    return str(n)`,
     `def fizzbuzz(n):\n    if n % 15 == 0:\n        return 'FizzBuzz'\n    elif n % 3 == 0:\n        return 'Fizz'\n    elif n % 5 == 0:\n        return 'Buzz'\n    else:\n        return str(n)`,
   ],
-  4: [ // Palindrome
+  4: [ // Palindrome — easy
     `def is_palindrome(s):\n    return s == s[::-1]`,
   ],
-  5: [ // Find Max
+  5: [ // Find Max — easy
     `def find_max(nums):\n    maximum = nums[0]\n    for num in nums:\n        if num > maximum:\n            maximum = num\n    return maximum`,
   ],
-  6: [ // Count Vowels
+  6: [ // Count Vowels — easy
     `def count_vowels(s):\n    count = 0\n    for ch in s.lower():\n        if ch in 'aeiou':\n            count += 1\n    return count`,
   ],
-  7: [ // Sum of List
+  7: [ // Sum of List — easy
     `def sum_list(nums):\n    total = 0\n    for num in nums:\n        total += num\n    return total`,
   ],
-  8: [ // Remove Duplicates
+  8: [ // Remove Duplicates — medium, 2 attempts
     `def remove_duplicates(nums):\n    seen = []\n    for n in nums:\n        if n not in seen:\n            seen.append(n)\n    return seen`,
     `def remove_duplicates(nums):\n    return list(set(nums))`,
   ],
 };
 
-const FALLBACK = [`def solution(x):\n    return x`];
+const FALLBACK = [
+  `def solution(x):\n    result = x\n    return result`,
+];
 
-// ── Bot names: competitive, energetic ─────────────────────────────────────────
+// ── Bot names ─────────────────────────────────────────────────────────────────
 const BOT_NAMES = [
   'CodeNinja','PythonKid','DebugMaster','ByteHunter','AlgoRider',
   'LoopWizard','ScriptRunner','CodeStorm','PyRacer','BitCrusher',
@@ -161,39 +211,41 @@ const BOT_NAMES = [
 export const randomHumanName = () =>
   BOT_NAMES[rndI(0, BOT_NAMES.length - 1)];
 
-// kept for any legacy import
 export function pickSkill() { return 'intermediate'; }
 
 // ── Main battle runner ────────────────────────────────────────────────────────
 /**
  * runOpponentBattle
  *
- * Fast intermediate opponent. Starts within 200ms. Always typing.
- * No filler. Creates urgency. Realistic corrections only.
+ * Realistic human programmer pace.
+ * Easy ~5-15s, Medium ~15-40s, Hard ~30-90s.
+ * Variable speed, real hesitation, genuine corrections.
  */
 export async function runOpponentBattle(problem, setCode, onWrongSubmit, onCorrectSubmit, signal) {
   const attempts = ATTEMPTS[problem?.id] || FALLBACK;
   let editorContent = '';
 
-  // Glance at problem — then immediately start
-  await pause(rnd(30, 60), signal);
+  // Initial thinking — reads the problem statement
+  await pause(rnd(300, 800), signal);
 
   for (let idx = 0; idx < attempts.length; idx++) {
     const isLast = idx === attempts.length - 1;
 
-    // Type this attempt at full speed
+    // Type this attempt with full human realism
     editorContent = await humanType(attempts[idx], editorContent, setCode, signal);
 
-    // Tiny review — blink and submit
-    await pause(rnd(50, 150), signal);
+    // Read over own code before submitting
+    await pause(rnd(1000, 3000), signal);
 
     if (isLast) {
       onCorrectSubmit();
     } else {
-      // Wrong — instantly back to editing
+      // Submit wrong answer
       onWrongSubmit(idx + 1);
-      await pause(rnd(80, 200), signal);
-      editorContent = await quickEdit(editorContent, setCode, signal);
+
+      // Process the failure — then start editing
+      await pause(rnd(1500, 3000), signal);
+      editorContent = await rewriteLastLine(editorContent, setCode, signal);
     }
   }
 }
