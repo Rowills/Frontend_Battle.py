@@ -38,13 +38,16 @@ const HARD_LINES = [
 
 // ── Speed bursts: humans naturally speed up mid-word then slow again ──────────
 function charDelay(ch, burstMode) {
-  if (ch === '\n')  return rnd(150, 350);          // newline — pause to think
-  if (ch === ' ')   return rnd(40, 80);             // space — quick
-  if (ch === ':')   return rnd(100, 200);           // colon — end of statement
-  if (ch === '(')   return rnd(60, 130);
-  if (ch === ',')   return rnd(50, 100);
-  if (burstMode)    return rnd(35, 65);             // mid-word burst
-  return rnd(60, 120);                              // normal char
+  if (ch === '\n')  return rnd(250, 500);           // newline — real thinking pause
+  if (ch === ' ')   return rnd(60, 120);            // space
+  if (ch === ':')   return rnd(150, 300);           // colon — end of statement
+  if (ch === '(')   return rnd(80, 160);
+  if (ch === ',')   return rnd(70, 140);
+  if (burstMode)    return rnd(55, 100);            // mid-word burst (still slower)
+  // Random ±30% variation on the base delay
+  const base = rnd(90, 180);
+  const variation = base * rnd(-0.3, 0.3);
+  return Math.max(40, base + variation);
 }
 
 // ── Core typing engine ────────────────────────────────────────────────────────
@@ -59,13 +62,13 @@ async function humanType(text, current, setCode, signal) {
   // ── Backspace back to divergence point ──
   const toDelete = buf.length - common;
   if (toDelete > 0) {
-    await pause(rnd(300, 600), signal); // notice the mistake
+    await pause(rnd(400, 900), signal); // notice the mistake
     for (let d = 0; d < toDelete; d++) {
       buf = buf.slice(0, -1);
       setCode(buf);
-      await pause(rnd(50, 100), signal); // backspace delay
+      await pause(rnd(70, 150), signal); // backspace delay
     }
-    await pause(rnd(200, 500), signal); // settle before retyping
+    await pause(rnd(300, 700), signal); // settle before retyping
   }
 
   // ── Type the new suffix ──
@@ -81,15 +84,20 @@ async function humanType(text, current, setCode, signal) {
     if (ch !== ' ' && ch !== '\t') {
       for (const kw of HARD_LINES) {
         if (lineAhead.startsWith(kw) && buf.length > 0) {
-          await pause(rnd(400, 1200), signal);
+          await pause(rnd(600, 1800), signal);
           break;
         }
       }
     }
 
-    // ── Random "staring at screen" pause (rare, feels very human) ──
-    if (Math.random() < 0.015) {
-      await pause(rnd(1000, 3000), signal);
+    // ── Random "staring at screen" pause (rare but noticeable) ──
+    if (Math.random() < 0.018) {
+      await pause(rnd(3000, 6000), signal);
+    }
+
+    // ── "Type a few chars then pause" micro-burst pattern ──
+    if (Math.random() < 0.06) {
+      await pause(rnd(400, 900), signal);
     }
 
     // ── Speed bursts: type a few chars fast, then return to normal ──
@@ -107,16 +115,16 @@ async function humanType(text, current, setCode, signal) {
       // Type wrong char
       buf += typo(ch);
       setCode(buf);
-      await pause(rnd(60, 130), signal);
+      await pause(rnd(90, 180), signal);
 
-      // Notice the mistake — pause
-      await pause(rnd(800, 1800), signal);
+      // Notice the mistake — longer pause (human stares at it)
+      await pause(rnd(1200, 2500), signal);
 
       // Backspace it
       buf = buf.slice(0, -1);
       setCode(buf);
-      await pause(rnd(50, 100), signal);
-      await pause(rnd(100, 300), signal); // re-focus
+      await pause(rnd(70, 150), signal);
+      await pause(rnd(200, 500), signal); // re-focus before continuing
     }
 
     // ── Type the correct character ──
@@ -140,18 +148,18 @@ async function rewriteLastLine(currentCode, setCode, signal) {
   let buf = currentCode;
 
   // Think about what went wrong
-  await pause(rnd(600, 1500), signal);
+  await pause(rnd(1200, 2800), signal);
 
   // Delete last line
   const toDel = lastLine.length + 1;
   for (let d = 0; d < toDel; d++) {
     buf = buf.slice(0, -1);
     setCode(buf);
-    await pause(rnd(50, 90), signal);
+    await pause(rnd(70, 140), signal);
   }
 
   // Brief pause — planning the fix
-  await pause(rnd(400, 900), signal);
+  await pause(rnd(600, 1400), signal);
 
   // Retype
   const retype = '\n' + lastLine;
@@ -225,8 +233,8 @@ export async function runOpponentBattle(problem, setCode, onWrongSubmit, onCorre
   const attempts = ATTEMPTS[problem?.id] || FALLBACK;
   let editorContent = '';
 
-  // Initial thinking — reads the problem statement
-  await pause(rnd(300, 800), signal);
+  // Initial thinking — reads and understands the problem
+  await pause(rnd(500, 1200), signal);
 
   for (let idx = 0; idx < attempts.length; idx++) {
     const isLast = idx === attempts.length - 1;
@@ -235,7 +243,7 @@ export async function runOpponentBattle(problem, setCode, onWrongSubmit, onCorre
     editorContent = await humanType(attempts[idx], editorContent, setCode, signal);
 
     // Read over own code before submitting
-    await pause(rnd(1000, 3000), signal);
+    await pause(rnd(1500, 4000), signal);
 
     if (isLast) {
       onCorrectSubmit();
@@ -244,7 +252,7 @@ export async function runOpponentBattle(problem, setCode, onWrongSubmit, onCorre
       onWrongSubmit(idx + 1);
 
       // Process the failure — then start editing
-      await pause(rnd(1500, 3000), signal);
+      await pause(rnd(2000, 4000), signal);
       editorContent = await rewriteLastLine(editorContent, setCode, signal);
     }
   }

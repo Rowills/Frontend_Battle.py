@@ -154,8 +154,7 @@ function Battle({ join = false }) {
   // ── Silent opponent fallback after MATCH_WAIT_MS ──────────────────────────
   const launchSilentOpponent = useCallback(() => {
     const fakeName = randomHumanName();
-    // 50% chance opponent wins when they finally submit correct
-    const opponentWinsOnCorrect = Math.random() < 0.50;
+    // Opponent always wins if user hasn't submitted yet (handled in callback)
 
     setOpponentName(fakeName);
     setMessages(p => [...p, `⚔️ ${fakeName} joined the battle!`]);
@@ -189,14 +188,14 @@ function Battle({ join = false }) {
           () => {
             setOpponentSubmitted(true);
             setMessages(p => [...p, `🏁 ${fakeName} submitted!`]);
-            if (!submittedRef.current && opponentWinsOnCorrect) {
+            if (!submittedRef.current) {
+              // User hasn't submitted yet — opponent wins
               setTimeout(() => {
                 setOpponentWon(true);
                 setMessages(p => [...p, `🏆 ${fakeName} got it correct!`]);
               }, 1200);
-            } else if (!submittedRef.current) {
-              setMessages(p => [...p, `✅ ${fakeName} fixed it — hurry up!`]);
             }
+            // If user already submitted correctly they see YOU WIN, not YOU LOSE
           },
 
           signal
