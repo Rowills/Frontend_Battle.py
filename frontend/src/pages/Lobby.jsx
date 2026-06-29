@@ -3,17 +3,28 @@ import API from '../api/axios';
 import { useNavigate } from 'react-router-dom';
 import problems from '../problems';
 
+const GUEST_BATTLE_LIMIT = 3;
+
 function Lobby() {
   const [battles, setBattles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [privateLoading, setPrivateLoading] = useState(false);
-  const [shareModal, setShareModal] = useState(null); // { battleId, link }
+  const [shareModal, setShareModal] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [showGuestWall, setShowGuestWall] = useState(false);
   const navigate = useNavigate();
 
   const userId = localStorage.getItem('user_id');
   const username = localStorage.getItem('username');
   const isLoggedIn = !!userId;
+
+  // Guest battle counter (persists in localStorage)
+  const getGuestCount = () => parseInt(localStorage.getItem('guest_battles') || '0');
+  const incrementGuestCount = () => {
+    const next = getGuestCount() + 1;
+    localStorage.setItem('guest_battles', String(next));
+    return next;
+  };
 
   const fetchBattles = async () => {
     try {
@@ -30,20 +41,38 @@ function Lobby() {
     return () => clearInterval(interval);
   }, []);
 
+  // Check guest limit — returns true if allowed to proceed
+  const checkGuestLimit = () => {
+    if (isLoggedIn) return true;
+    const count = getGuestCount();
+    if (count >= GUEST_BATTLE_LIMIT) {
+      setShowGuestWall(true);
+      return false;
+    }
+    return true;
+  };
+
   const requireLogin = () => {
     if (!isLoggedIn) { navigate('/login'); return false; }
     return true;
   };
 
   const createBattle = async () => {
-    if (!requireLogin()) return;
+    if (!checkGuestLimit()) return;
     setLoading(true);
     try {
       const randomProblem = problems[Math.floor(Math.random() * problems.length)];
-      const res = await API.post(`/battles/create?player1_id=${userId}`, {
-        problem_id: randomProblem.id,
-      });
-      navigate(`/battle/${res.data.id}`, { state: { problem: randomProblem } });
+      if (isLoggedIn) {
+        const res = await API.post(`/battles/create?player1_id=${userId}`, {
+          problem_id: randomProblem.id,
+        });
+        incrementGuestCount();
+        navigate(`/battle/${res.data.id}`, { state: { problem: randomProblem } });
+      } else {
+        // Guest battle — use a fake battle ID, bot will be spawned
+        incrementGuestCount();
+        navigate(`/battle/guest-${Date.now()}`, { state: { problem: randomProblem, isGuest: true } });
+      }
     } catch (err) {
       console.error('Failed to create battle');
     }
@@ -96,8 +125,35 @@ function Lobby() {
     navigate('/lobby');
   };
 
+  const guestBattlesLeft = isLoggedIn ? null : Math.max(0, GUEST_BATTLE_LIMIT - getGuestCount());
+
   return (
     <div style={styles.container}>
+
+      {/* Guest Wall Modal */}
+      {showGuestWall && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.guestWallBox}>
+            <div style={{ fontSize: '56px', marginBottom: '12px' }}>🏆</div>
+            <h2 style={styles.guestWallTitle}>You've played {GUEST_BATTLE_LIMIT} free battles!</h2>
+            <p style={styles.guestWallText}>
+              Create a free account to keep battling, track your wins, climb the leaderboard, and unlock your full battle history.
+            </p>
+            <div style={styles.guestWallPerks}>
+              <div style={styles.perk}>✅ Unlimited battles</div>
+              <div style={styles.perk}>🏆 Leaderboard ranking</div>
+              <div style={styles.perk}>📊 Win/loss history</div>
+              <div style={styles.perk}>👤 Public profile</div>
+            </div>
+            <button style={styles.guestRegisterBtn} onClick={() => navigate('/register')}>
+              🚀 Create Free Account
+            </button>
+            <button style={styles.guestLoginBtn} onClick={() => navigate('/login')}>
+              Already have an account? Login
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Share Link Modal */}
       {shareModal && (
@@ -152,13 +208,23 @@ function Lobby() {
         </div>
       </div>
 
+      {/* Guest battle counter strip */}
+      {!isLoggedIn && guestBattlesLeft > 0 && (
+        <div style={styles.guestStrip}>
+          🎮 You have <strong style={{ color: '#00d4aa', margin: '0 4px' }}>{guestBattlesLeft} free battle{guestBattlesLeft !== 1 ? 's' : ''}</strong> left as a guest —&nbsp;
+          <span style={{ color: '#6c63ff', cursor: 'pointer', fontWeight: 700 }} onClick={() => navigate('/register')}>
+            Register free
+          </span> to play unlimited!
+        </div>
+      )}
+
       {/* Hero banner for guests */}
       {!isLoggedIn && (
         <div style={styles.heroBanner}>
           <h2 style={styles.heroTitle}>⚔️ Real-time 1v1 Python Battles</h2>
-          <p style={styles.heroText}>Compete against other coders live. Login to create or join a battle!</p>
-          <button style={styles.heroBtn} onClick={() => navigate('/register')}>
-            🚀 Get Started Free
+          <p style={styles.heroText}>No account needed to start — jump straight into a battle!</p>
+          <button style={styles.heroBtn} onClick={createBattle}>
+            ⚔️ Play Now (Free)
           </button>
         </div>
       )}
@@ -301,6 +367,37 @@ const styles = {
     background: 'transparent', border: '1px solid #ff4757',
     color: '#ff4757', padding: '6px 14px', borderRadius: '20px',
     cursor: 'pointer', fontWeight: '600', fontSize: '13px',
+  },
+
+  // Guest strip + wall
+  guestStrip: {
+    background: '#1a1a2e', borderBottom: '1px solid #6c63ff33',
+    padding: '10px 20px', textAlign: 'center', color: '#aaaaaa', fontSize: '14px',
+  },
+  guestWallBox: {
+    background: 'linear-gradient(135deg, #1a1a2e, #16213e)',
+    borderRadius: '24px', padding: '44px 32px', textAlign: 'center',
+    width: '100%', maxWidth: '480px',
+    border: '2px solid #6c63ff', boxShadow: '0 0 60px #6c63ff44',
+  },
+  guestWallTitle: { color: '#ffffff', fontSize: '24px', fontWeight: '900', marginBottom: '12px' },
+  guestWallText: { color: '#aaaaaa', fontSize: '14px', lineHeight: '1.7', marginBottom: '20px' },
+  guestWallPerks: {
+    display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '24px',
+  },
+  perk: {
+    background: '#0f0f1a', border: '1px solid #6c63ff33', borderRadius: '10px',
+    padding: '10px 12px', color: '#00d4aa', fontSize: '13px', fontWeight: '600',
+  },
+  guestRegisterBtn: {
+    width: '100%', background: 'linear-gradient(135deg, #6c63ff, #00d4aa)',
+    border: 'none', color: '#fff', padding: '14px', borderRadius: '25px',
+    fontSize: '16px', fontWeight: '700', cursor: 'pointer', marginBottom: '12px',
+  },
+  guestLoginBtn: {
+    width: '100%', background: 'transparent', border: '1px solid #6c63ff55',
+    color: '#aaaaaa', padding: '10px', borderRadius: '25px',
+    fontSize: '13px', fontWeight: '600', cursor: 'pointer',
   },
 
   // Hero

@@ -45,13 +45,13 @@ function charDelay(ch, personality, burstMode) {
   const { speedMult } = personality;
   let base;
 
-  if (ch === '\n')      base = rnd(250, 500);
-  else if (ch === ' ')  base = rnd(60, 120);
-  else if (ch === ':')  base = rnd(140, 280);
-  else if (ch === '(')  base = rnd(80, 160);
-  else if (ch === ',')  base = rnd(70, 140);
-  else if (burstMode)   base = rnd(45, 85);
-  else                  base = rnd(90, 180);
+  if (ch === '\n')      base = rnd(265, 515);
+  else if (ch === ' ')  base = rnd(75, 135);
+  else if (ch === ':')  base = rnd(155, 295);
+  else if (ch === '(')  base = rnd(95, 175);
+  else if (ch === ',')  base = rnd(85, 155);
+  else if (burstMode)   base = rnd(60, 100);
+  else                  base = rnd(105, 195);
 
   // ±30% random humanisation
   const variation = base * rnd(-0.3, 0.3);
@@ -77,11 +77,11 @@ async function humanType(text, current, setCode, personality, signal) {
   // Backspace to divergence
   const toDelete = buf.length - common;
   if (toDelete > 0) {
-    await pause(rnd(400, 900) * personality.thinkiness, signal);
+    await pause(rnd(515, 1215) * personality.thinkiness, signal);
     for (let d = 0; d < toDelete; d++) {
       buf = buf.slice(0, -1);
       setCode(buf);
-      await pause(rnd(70, 150) * personality.speedMult, signal);
+      await pause(rnd(85, 165) * personality.speedMult, signal);
     }
     await pause(rnd(300, 700), signal);
   }
@@ -98,7 +98,7 @@ async function humanType(text, current, setCode, personality, signal) {
     if (ch !== ' ' && ch !== '\t') {
       for (const kw of THINK_BEFORE) {
         if (lineAhead.startsWith(kw) && buf.length > 0) {
-          await pause(rnd(600, 1800) * personality.thinkiness, signal);
+          await pause(rnd(515, 1215) * personality.thinkiness, signal);
           break;
         }
       }
@@ -106,12 +106,12 @@ async function humanType(text, current, setCode, personality, signal) {
 
     // ── Rare "staring at screen" long pause ──
     if (Math.random() < 0.014 * personality.thinkiness) {
-      await pause(rnd(3000, 6000) * personality.thinkiness, signal);
+      await pause(rnd(3015, 6015) * personality.thinkiness, signal);
     }
 
     // ── Mid-sentence micro-pause (type a few chars, stop, continue) ──
     if (Math.random() < 0.055 * personality.thinkiness) {
-      await pause(rnd(400, 1000) * personality.thinkiness, signal);
+      await pause(rnd(415, 1015) * personality.thinkiness, signal);
     }
 
     // ── Speed burst: find a flow for 4-12 chars ──
@@ -146,11 +146,11 @@ async function humanType(text, current, setCode, personality, signal) {
     if (ch !== '\n' && ch !== ' ' && ch !== '\t' && Math.random() < personality.mistakeRate) {
       buf += typo(ch);
       setCode(buf);
-      await pause(rnd(90, 180) * personality.speedMult, signal);
-      await pause(rnd(1200, 2500), signal); // stares at the mistake
+      await pause(rnd(105, 195) * personality.speedMult, signal);
+      await pause(rnd(1215, 2515), signal); // stares at the mistake
       buf = buf.slice(0, -1);
       setCode(buf);
-      await pause(rnd(70, 150) * personality.speedMult, signal);
+      await pause(rnd(85, 165) * personality.speedMult, signal);
       await pause(rnd(200, 500), signal);
     }
 
@@ -172,15 +172,15 @@ async function rewriteLastLine(currentCode, setCode, personality, signal) {
   const lastLine = lines[lines.length - 1];
   let buf = currentCode;
 
-  await pause(rnd(1200, 2800) * personality.thinkiness, signal);
+  await pause(rnd(1215, 2515) * personality.thinkiness, signal);
 
   const toDel = lastLine.length + 1;
   for (let d = 0; d < toDel; d++) {
     buf = buf.slice(0, -1);
     setCode(buf);
-    await pause(rnd(70, 140) * personality.speedMult, signal);
+    await pause(rnd(85, 165) * personality.speedMult, signal);
   }
-  await pause(rnd(600, 1400) * personality.thinkiness, signal);
+  await pause(rnd(615, 1415) * personality.thinkiness, signal);
 
   const retype = '\n' + lastLine;
   for (const ch of retype) {
@@ -194,9 +194,13 @@ async function rewriteLastLine(currentCode, setCode, personality, signal) {
 
 // ── Problem difficulty classification ─────────────────────────────────────────
 const DIFFICULTY = {
-  1: 'medium', 2: 'easy',   3: 'medium',
-  4: 'easy',   5: 'easy',   6: 'easy',
-  7: 'easy',   8: 'medium',
+  1: 'medium', 2: 'easy',   3: 'medium', 4: 'easy',
+  5: 'easy',   6: 'easy',   7: 'easy',   8: 'medium',
+  9: 'easy',   10: 'easy',  11: 'easy',  12: 'easy',
+  13: 'easy',  14: 'easy',  15: 'easy',  16: 'easy',
+  17: 'easy',  18: 'easy',  19: 'medium',20: 'medium',
+  21: 'medium',22: 'medium',23: 'medium',24: 'medium',
+  25: 'medium',26: 'easy',  27: 'easy',  28: 'easy',
 };
 
 // Reading time by difficulty before first keystroke (~10s base wait)
@@ -234,9 +238,69 @@ const ATTEMPTS = {
   7: [ // Sum of List — easy
     `def sum_list(nums):\n    total = 0\n    for num in nums:\n        total += num\n    return total`,
   ],
-  8: [ // Remove Duplicates — medium (2 attempts)
+  8: [ // Remove Duplicates — medium
     `def remove_duplicates(nums):\n    seen = []\n    for n in nums:\n        if n not in seen:\n            seen.append(n)\n    return seen`,
     `def remove_duplicates(nums):\n    return list(set(nums))`,
+  ],
+  9: [ // Even or Odd
+    `def even_or_odd(n):\n    if n % 2 == 0:\n        return 'Even'\n    else:\n        return 'Odd'`,
+  ],
+  10: [ // Celsius to Fahrenheit
+    `def celsius_to_fahrenheit(c):\n    return (c * 9/5) + 32`,
+  ],
+  11: [ // Count Words
+    `def count_words(sentence):\n    return len(sentence.split())`,
+  ],
+  12: [ // Square Numbers
+    `def square_numbers(nums):\n    return [num ** 2 for num in nums]`,
+  ],
+  13: [ // Largest of Three
+    `def largest_of_three(a, b, c):\n    if a >= b and a >= c:\n        return a\n    elif b >= a and b >= c:\n        return b\n    else:\n        return c`,
+  ],
+  14: [ // Reverse a List
+    `def reverse_list(lst):\n    return lst[::-1]`,
+  ],
+  15: [ // Factorial
+    `def factorial(n):\n    result = 1\n    for i in range(1, n + 1):\n        result *= i\n    return result`,
+  ],
+  16: [ // Is Prime
+    `def is_prime(n):\n    if n < 2:\n        return False\n    for i in range(2, int(n**0.5) + 1):\n        if n % i == 0:\n            return False\n    return True`,
+  ],
+  17: [ // Sum of Digits
+    `def sum_of_digits(n):\n    total = 0\n    for d in str(n):\n        total += int(d)\n    return total`,
+  ],
+  18: [ // List Average
+    `def list_average(nums):\n    return sum(nums) / len(nums)`,
+  ],
+  19: [ // Anagram Check — medium
+    `def is_anagram(s1, s2):\n    return sorted(s1.lower()) == sorted(s2.lower())`,
+  ],
+  20: [ // Fibonacci — medium
+    `def fibonacci(n):\n    fib = [0, 1]\n    for i in range(2, n):\n        fib.append(fib[-1] + fib[-2])\n    return fib[:n]`,
+  ],
+  21: [ // Second Largest — medium
+    `def second_largest(nums):\n    unique = sorted(set(nums), reverse=True)\n    return unique[1]`,
+  ],
+  22: [ // Flatten — medium
+    `def flatten(lst):\n    result = []\n    for sublist in lst:\n        result.extend(sublist)\n    return result`,
+  ],
+  23: [ // Word Frequency — medium
+    `def word_frequency(sentence):\n    freq = {}\n    for word in sentence.split():\n        freq[word] = freq.get(word, 0) + 1\n    return freq`,
+  ],
+  24: [ // Missing Number — medium
+    `def missing_number(nums, n):\n    return n*(n+1)//2 - sum(nums)`,
+  ],
+  25: [ // Longest Word — medium
+    `def longest_word(sentence):\n    words = sentence.split()\n    return max(words, key=len)`,
+  ],
+  26: [ // Capitalize Words
+    `def capitalize_words(s):\n    return s.title()`,
+  ],
+  27: [ // Count Occurrences
+    `def count_occurrences(lst, target):\n    return lst.count(target)`,
+  ],
+  28: [ // Power Function
+    `def power(base, exp):\n    result = 1\n    for _ in range(exp):\n        result *= base\n    return result`,
   ],
 };
 
@@ -292,7 +356,7 @@ export async function runOpponentBattle(problem, setCode, onWrongSubmit, onCorre
     editorContent = await humanType(attempts[idx], editorContent, setCode, personality, signal);
 
     // ── Code review phase: read it over ──
-    await pause(rnd(1500, 4000) * personality.thinkiness, signal);
+    await pause(rnd(1515, 4015) * personality.thinkiness, signal);
 
     if (isLast) {
       // Correct submission
@@ -300,7 +364,7 @@ export async function runOpponentBattle(problem, setCode, onWrongSubmit, onCorre
     } else {
       // Wrong submission — digest the error, then start fixing
       onWrongSubmit(idx + 1);
-      await pause(rnd(2000, 4500) * personality.thinkiness, signal);
+      await pause(rnd(1215, 2515) * personality.thinkiness, signal);
       editorContent = await rewriteLastLine(editorContent, setCode, personality, signal);
     }
   }
