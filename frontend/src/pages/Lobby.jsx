@@ -327,7 +327,7 @@ function Lobby() {
           </div>
         ) : (
           <div style={styles.grid}>
-            {battles.map((battle) => (
+            {battles.slice(0, 6).map((battle) => (
               <div key={battle.id} style={styles.battleCard}>
                 <div style={styles.battleIcon}>⚔️</div>
                 <p style={styles.battleTitle}>Battle #{battle.id}</p>
