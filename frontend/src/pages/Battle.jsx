@@ -191,6 +191,7 @@ function Battle({ join = false }) {
             if (!submittedRef.current) {
               // User hasn't submitted yet — opponent wins
               setTimeout(() => {
+                setReviewing(false); // clear any stale review state
                 setOpponentWon(true);
                 setMessages(p => [...p, `🏆 ${fakeName} got it correct!`]);
               }, 1200);
@@ -337,6 +338,7 @@ function Battle({ join = false }) {
               <p style={S.victorySub}>Correct Answer! Amazing job!</p>
               <div style={{fontSize:28,marginBottom:20}}>⭐⭐⭐</div>
               <button style={S.victoryBtn} onClick={()=>navigate('/lobby')}>🎮 Play Again</button>
+              <button style={S.rematchBtn} onClick={()=>navigate(0)}>🔄 Rematch</button>
               <button style={S.reviewBtn} onClick={()=>setReviewing(true)}>🔍 Review Code</button>
             </div>
           </div>
@@ -354,6 +356,7 @@ function Battle({ join = false }) {
             </p>
             <div style={{fontSize:28,marginBottom:20}}>🌑🌑🌑</div>
             <button style={S.defeatBtn} onClick={()=>navigate('/lobby')}>🔁 Try Again</button>
+            <button style={S.rematchBtn} onClick={()=>navigate(0)}>🔄 Rematch Same Problem</button>
             <button style={S.reviewBtn} onClick={()=>setReviewing(true)}>🔍 Review Code</button>
           </div>
         </div>
@@ -463,8 +466,8 @@ function Battle({ join = false }) {
         </div>
       )}
 
-      {/* ── Result banner ── */}
-      {result && (
+      {/* ── Result banner — only show wrong banner if battle still active (not reviewing, not lost) ── */}
+      {result && !reviewing && !(result !== 'correct' && opponentWon) && (
         <div style={result==='correct'?S.correctBanner:S.wrongBanner}>
           {result==='correct'?'🏆 Correct Answer! You Win!':'❌ Wrong Answer! Try again!'}
         </div>
@@ -613,6 +616,9 @@ const S = {
   defeatBtn: { background:'linear-gradient(135deg,#ff4757,#c0392b)', border:'none',
     color:'white', padding:'14px 30px', borderRadius:25, fontSize:16, fontWeight:700,
     cursor:'pointer', width:'100%', marginBottom:10 },
+  rematchBtn: { background:'transparent', border:'2px solid #ffa502', color:'#ffa502',
+    padding:'12px 30px', borderRadius:25, fontSize:14, fontWeight:700,
+    cursor:'pointer', width:'100%', marginTop:4, marginBottom:4 },
   reviewBtn: { background:'transparent', border:'2px solid #00d4aa', color:'#00d4aa',
     padding:'12px 30px', borderRadius:25, fontSize:14, fontWeight:700,
     cursor:'pointer', width:'100%', marginTop:4 },

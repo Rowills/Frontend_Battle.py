@@ -5,6 +5,13 @@ import problems from '../problems';
 
 const GUEST_BATTLE_LIMIT = 3;
 
+// Daily challenge: deterministic problem based on today's date
+function getDailyChallenge() {
+  const today = new Date();
+  const dayIndex = Math.floor(today.getTime() / 86400000); // days since epoch
+  return problems[dayIndex % problems.length];
+}
+
 function Lobby() {
   const [battles, setBattles] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -12,7 +19,10 @@ function Lobby() {
   const [shareModal, setShareModal] = useState(null);
   const [copied, setCopied] = useState(false);
   const [showGuestWall, setShowGuestWall] = useState(false);
+  const [diffFilter, setDiffFilter] = useState('All');
   const navigate = useNavigate();
+
+  const dailyChallenge = getDailyChallenge();
 
   const userId = localStorage.getItem('user_id');
   const username = localStorage.getItem('username');
@@ -57,11 +67,14 @@ function Lobby() {
     return true;
   };
 
-  const createBattle = async () => {
+  const createBattle = async (forceProblem = null) => {
     if (!checkGuestLimit()) return;
     setLoading(true);
     try {
-      const randomProblem = problems[Math.floor(Math.random() * problems.length)];
+      const pool = forceProblem ? [forceProblem]
+        : diffFilter === 'All' ? problems
+        : problems.filter(p => p.difficulty === diffFilter);
+      const randomProblem = pool[Math.floor(Math.random() * pool.length)];
       if (isLoggedIn) {
         const res = await API.post(`/battles/create?player1_id=${userId}`, {
           problem_id: randomProblem.id,
@@ -69,7 +82,6 @@ function Lobby() {
         incrementGuestCount();
         navigate(`/battle/${res.data.id}`, { state: { problem: randomProblem } });
       } else {
-        // Guest battle — use a fake battle ID, bot will be spawned
         incrementGuestCount();
         navigate(`/battle/guest-${Date.now()}`, { state: { problem: randomProblem, isGuest: true } });
       }
@@ -192,6 +204,7 @@ function Lobby() {
           {isLoggedIn ? (
             <>
               <span style={styles.welcome}>👋 {username}</span>
+              <button style={styles.navBtn} onClick={() => navigate('/practice')}>🧪 Practice</button>
               <button style={styles.navBtn} onClick={() => navigate('/leaderboard')}>🏆 Leaderboard</button>
               <button style={styles.navBtn} onClick={() => navigate('/about')}>ℹ️ About</button>
               <button style={styles.navBtn} onClick={() => navigate('/profile')}>👤 Profile</button>
@@ -199,6 +212,7 @@ function Lobby() {
             </>
           ) : (
             <>
+              <button style={styles.navBtn} onClick={() => navigate('/practice')}>🧪 Practice</button>
               <button style={styles.navBtn} onClick={() => navigate('/leaderboard')}>🏆 Leaderboard</button>
               <button style={styles.navBtn} onClick={() => navigate('/about')}>ℹ️ About</button>
               <button style={styles.loginBtn} onClick={() => navigate('/login')}>Login</button>
@@ -232,21 +246,46 @@ function Lobby() {
       {/* Main Content */}
       <div style={styles.content}>
         <h1 style={styles.heading}>Battle Lobby</h1>
-        <p style={styles.subheading}>Challenge someone or play with a friend!</p>
+        <p style={styles.subheading}>Challenge someone or sharpen your skills!</p>
+
+        {/* Daily Challenge Card */}
+        <div style={styles.dailyCard}>
+          <div style={styles.dailyLeft}>
+            <div style={styles.dailyEmoji}>🌟</div>
+            <div>
+              <p style={styles.dailyLabel}>DAILY CHALLENGE</p>
+              <p style={styles.dailyTitle}>{dailyChallenge.title}</p>
+              <p style={styles.dailyDiff}>{dailyChallenge.difficulty}</p>
+            </div>
+          </div>
+          <button style={styles.dailyBtn} onClick={() => createBattle(dailyChallenge)} disabled={loading}>
+            ⚔️ Battle It
+          </button>
+        </div>
 
         {/* Battle Mode Buttons */}
         <div style={styles.btnRow}>
           <div style={styles.modeCard}>
             <div style={{ fontSize: '36px', marginBottom: '10px' }}>🌍</div>
             <h3 style={styles.modeTitle}>Public Battle</h3>
-            <p style={styles.modeDesc}>Join the open lobby and battle any random opponent</p>
+            <p style={styles.modeDesc}>1v1 real-time battle against a random opponent</p>
+            {/* Difficulty filter */}
+            <div style={styles.diffRow}>
+              {['All','Easy','Medium','Hard'].map(d => (
+                <button
+                  key={d}
+                  style={{ ...styles.diffBtn, ...(diffFilter === d ? styles.diffBtnActive : {}) }}
+                  onClick={() => setDiffFilter(d)}
+                >{d}</button>
+              ))}
+            </div>
             <button
               className="btn-primary"
               style={styles.modeBtn}
-              onClick={createBattle}
+              onClick={() => createBattle()}
               disabled={loading}
             >
-              {loading ? 'Creating...' : '⚔️ Create Public Battle'}
+              {loading ? 'Creating...' : '⚔️ Create Battle'}
             </button>
           </div>
 
@@ -262,10 +301,19 @@ function Lobby() {
               {privateLoading ? 'Creating...' : '🔗 Create Private Battle'}
             </button>
           </div>
+
+          <div style={styles.modeCard}>
+            <div style={{ fontSize: '36px', marginBottom: '10px' }}>🧪</div>
+            <h3 style={styles.modeTitle}>Practice Mode</h3>
+            <p style={styles.modeDesc}>Pick any problem and solve it solo. No timer, no pressure.</p>
+            <button style={styles.practiceBtn} onClick={() => navigate('/practice')}>
+              📚 Open Practice
+            </button>
+          </div>
         </div>
 
         {!isLoggedIn && (
-          <p style={styles.loginHint}>🔒 You need to <span style={{ color: '#6c63ff', cursor: 'pointer' }} onClick={() => navigate('/login')}>login</span> to create or join battles</p>
+          <p style={styles.loginHint}>🔒 <span style={{ color: '#6c63ff', cursor: 'pointer' }} onClick={() => navigate('/login')}>Login</span> to create public battles and track your wins!</p>
         )}
 
         {/* Open Battles List */}
@@ -418,8 +466,38 @@ const styles = {
   heading: { fontSize: '42px', fontWeight: '900', color: '#ffffff', marginBottom: '12px' },
   subheading: { color: '#aaaaaa', marginBottom: '36px', fontSize: '16px' },
 
+  // Daily challenge
+  dailyCard: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+    background: 'linear-gradient(135deg, #1a1a2e, #16213e)',
+    border: '1px solid #ffa50244', borderRadius: '16px', padding: '20px 24px',
+    marginBottom: '24px',
+  },
+  dailyLeft: { display: 'flex', alignItems: 'center', gap: '16px' },
+  dailyEmoji: { fontSize: '36px' },
+  dailyLabel: { color: '#ffa502', fontSize: '11px', fontWeight: '800', letterSpacing: '1px', margin: '0 0 4px' },
+  dailyTitle: { color: '#fff', fontWeight: '700', fontSize: '18px', margin: '0 0 4px' },
+  dailyDiff: { color: '#aaa', fontSize: '13px', margin: 0 },
+  dailyBtn: {
+    background: 'linear-gradient(135deg, #ffa502, #ff6b35)', border: 'none',
+    color: '#fff', padding: '10px 22px', borderRadius: '20px',
+    fontWeight: '700', fontSize: '14px', cursor: 'pointer',
+  },
+
+  // Difficulty filter
+  diffRow: { display: 'flex', gap: '6px', marginBottom: '14px', justifyContent: 'center' },
+  diffBtn: { background: 'transparent', border: '1px solid #6c63ff33', color: '#888', padding: '4px 12px', borderRadius: '20px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' },
+  diffBtnActive: { background: '#6c63ff', color: '#fff', border: '1px solid #6c63ff' },
+
+  // Practice button
+  practiceBtn: {
+    width: '100%', padding: '12px 0', borderRadius: '25px', fontWeight: '700',
+    fontSize: '14px', cursor: 'pointer', border: '2px solid #00d4aa',
+    background: 'transparent', color: '#00d4aa',
+  },
+
   // Mode cards
-  btnRow: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '16px' },
+  btnRow: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '16px' },
   modeCard: {
     background: '#1a1a2e', borderRadius: '20px', padding: '28px 20px',
     border: '1px solid #6c63ff33', textAlign: 'center',
