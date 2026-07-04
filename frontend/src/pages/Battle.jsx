@@ -209,7 +209,8 @@ function Battle({ join = false }) {
       }, COUNTDOWN_MS);
 
     }, 1200);
-  }, [problem, startCountdown]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [problem, startCountdown, id]);
 
   // ── WebSocket ───────────────────────────────────────────────────────────────
   useEffect(() => {
