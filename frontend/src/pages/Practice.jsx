@@ -159,7 +159,7 @@ function Practice() {
         </div>
         <div style={S.editorWrap}>
           <Editor
-            height="100%"
+            height="420px"
             defaultLanguage="python"
             theme="vs-dark"
             value={code}
@@ -262,7 +262,7 @@ const S = {
   // Full-width editor
   editorPane: { flex: 1, display: 'flex', flexDirection: 'column', minHeight: 420 },
   editorHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 16px', background: '#1a1a2e', borderBottom: '1px solid #ffffff11', color: '#00d4aa', fontWeight: 700, fontSize: 13 },
-  editorWrap: { flex: 1, minHeight: 380 },
+  editorWrap: { height: '420px' },
   correctTag: { background: '#00d4aa22', color: '#00d4aa', border: '1px solid #00d4aa44', padding: '2px 10px', borderRadius: 20, fontSize: 11 },
   wrongTag: { background: '#ff475722', color: '#ff4757', border: '1px solid #ff475744', padding: '2px 10px', borderRadius: 20, fontSize: 11 },
 
