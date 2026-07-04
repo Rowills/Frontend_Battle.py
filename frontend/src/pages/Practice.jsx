@@ -42,6 +42,11 @@ function Practice() {
     setResult(ok ? 'correct' : 'wrong');
     setSubmitted(true);
     setAttempts(a => a + 1);
+    if (ok) {
+      // Track practice wins in localStorage so leaderboard can show them
+      const prev = parseInt(localStorage.getItem('practice_wins') || '0');
+      localStorage.setItem('practice_wins', prev + 1);
+    }
   };
 
   const handleTryAgain = () => {

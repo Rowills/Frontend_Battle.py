@@ -118,6 +118,7 @@ function Battle({ join = false }) {
   const submittedRef   = useRef(false);
   const matchTimerRef  = useRef(null);
   const abortRef       = useRef(null);    // AbortController for typing sim
+  const isBotBattleRef = useRef(false);   // true when bot fallback is active
 
   const playerId = localStorage.getItem('user_id') || '1';
   const username = localStorage.getItem('username') || 'Player';
@@ -154,7 +155,7 @@ function Battle({ join = false }) {
   // ── Silent opponent fallback after MATCH_WAIT_MS ──────────────────────────
   const launchSilentOpponent = useCallback(() => {
     const fakeName = randomHumanName();
-    // Opponent always wins if user hasn't submitted yet (handled in callback)
+    isBotBattleRef.current = true;   // mark as bot battle
 
     setOpponentName(fakeName);
     setMessages(p => [...p, `⚔️ ${fakeName} joined the battle!`]);
@@ -194,6 +195,10 @@ function Battle({ join = false }) {
                 setReviewing(false); // clear any stale review state
                 setOpponentWon(true);
                 setMessages(p => [...p, `🏆 ${fakeName} got it correct!`]);
+                // Record bot win as a loss for the user in the DB
+                if (isBotBattleRef.current) {
+                  API.post(`/stats/battle/${id}/bot-won`).catch(() => {});
+                }
               }, 1200);
             }
             // If user already submitted correctly they see YOU WIN, not YOU LOSE

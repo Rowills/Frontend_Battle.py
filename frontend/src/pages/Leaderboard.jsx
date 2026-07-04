@@ -7,12 +7,27 @@ function Leaderboard() {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const myId = parseInt(localStorage.getItem('user_id'));
+  const practiceWins = parseInt(localStorage.getItem('practice_wins') || '0');
 
   useEffect(() => {
     API.get('/stats/leaderboard')
-      .then(res => { setPlayers(res.data); setLoading(false); })
+      .then(res => {
+        // Merge practice wins into the current user's row
+        const data = res.data.map(p => {
+          if (p.user_id === myId && practiceWins > 0) {
+            const wins  = p.wins + practiceWins;
+            const total = p.total + practiceWins;
+            return { ...p, wins, total, win_rate: Math.round((wins / total) * 100) };
+          }
+          return p;
+        });
+        // Re-sort after merge
+        data.sort((a, b) => b.wins - a.wins || b.win_rate - a.win_rate);
+        setPlayers(data);
+        setLoading(false);
+      })
       .catch(() => setLoading(false));
-  }, []);
+  }, [myId, practiceWins]);
 
   const medals = ['🥇', '🥈', '🥉'];
 
@@ -30,7 +45,7 @@ function Leaderboard() {
 
       <div style={styles.content}>
         <h1 style={styles.heading}>🏆 Leaderboard</h1>
-        <p style={styles.subheading}>Top coders ranked by wins</p>
+        <p style={styles.subheading}>Top coders ranked by wins (real battles + bot battles + practice)</p>
 
         {loading ? (
           <p style={{ color: '#aaa', marginTop: '40px' }}>Loading...</p>
