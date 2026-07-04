@@ -71,9 +71,10 @@ function Lobby() {
     if (!checkGuestLimit()) return;
     setLoading(true);
     try {
-      const pool = forceProblem ? [forceProblem]
+      let pool = forceProblem ? [forceProblem]
         : diffFilter === 'All' ? problems
         : problems.filter(p => p.difficulty === diffFilter);
+      if (!pool || pool.length === 0) pool = problems; // fallback
       const randomProblem = pool[Math.floor(Math.random() * pool.length)];
       if (isLoggedIn) {
         const res = await API.post(`/battles/create?player1_id=${userId}`, {

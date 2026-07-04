@@ -201,6 +201,8 @@ const DIFFICULTY = {
   17: 'easy',  18: 'easy',  19: 'medium',20: 'medium',
   21: 'medium',22: 'medium',23: 'medium',24: 'medium',
   25: 'medium',26: 'easy',  27: 'easy',  28: 'easy',
+  29: 'hard',  30: 'hard',  31: 'hard',  32: 'hard',
+  33: 'hard',  34: 'hard',
 };
 
 // Reading time by difficulty before first keystroke (~10s base wait)
@@ -301,6 +303,24 @@ const ATTEMPTS = {
   ],
   28: [ // Power Function
     `def power(base, exp):\n    result = 1\n    for _ in range(exp):\n        result *= base\n    return result`,
+  ],
+  29: [ // Balanced Brackets — hard
+    `def is_balanced(s):\n    stack = []\n    pairs = {')':'(', ']':'[', '}':'{'}\n    for ch in s:\n        if ch in '([{':\n            stack.append(ch)\n        elif ch in ')]}':\n            if not stack or stack[-1] != pairs[ch]:\n                return False\n            stack.pop()\n    return len(stack) == 0`,
+  ],
+  30: [ // Binary Search — hard
+    `def binary_search(nums, target):\n    left, right = 0, len(nums) - 1\n    while left <= right:\n        mid = (left + right) // 2\n        if nums[mid] == target:\n            return mid\n        elif nums[mid] < target:\n            left = mid + 1\n        else:\n            right = mid - 1\n    return -1`,
+  ],
+  31: [ // Longest Common Prefix — hard
+    `def longest_common_prefix(strs):\n    if not strs:\n        return ''\n    prefix = strs[0]\n    for s in strs[1:]:\n        while not s.startswith(prefix):\n            prefix = prefix[:-1]\n        if not prefix:\n            return ''\n    return prefix`,
+  ],
+  32: [ // Group Anagrams — hard
+    `def group_anagrams(strs):\n    groups = {}\n    for s in strs:\n        key = tuple(sorted(s))\n        if key not in groups:\n            groups[key] = []\n        groups[key].append(s)\n    return list(groups.values())`,
+  ],
+  33: [ // Rotate Matrix — hard
+    `def rotate_matrix(matrix):\n    n = len(matrix)\n    matrix[:] = [list(row) for row in zip(*matrix[::-1])]\n    return matrix`,
+  ],
+  34: [ // Valid Sudoku Row — hard
+    `def valid_sudoku_row(row):\n    return len(set(row)) == 9 and set(row) == set(range(1, 10))`,
   ],
 };
 
