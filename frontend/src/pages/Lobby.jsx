@@ -122,7 +122,9 @@ function Lobby() {
         const res = await API.post(`/battles/create?player1_id=${userId}`, { problem_id: prob.id });
         navigate(`/battle/${res.data.id}`, { state: { problem: prob } });
       } else {
+        setLoading(false);
         navigate(`/battle/guest-${Date.now()}`, { state: { problem: prob, isGuest: true } });
+        return;
       }
     } catch { /* silent */ }
     setLoading(false);

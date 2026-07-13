@@ -217,8 +217,21 @@ function Battle({ join = false }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [problem, startCountdown, id]);
 
-  // ── WebSocket ───────────────────────────────────────────────────────────────
+  // ── WebSocket / Guest bot ───────────────────────────────────────────────────
   useEffect(() => {
+    // Guest battle — skip WebSocket, launch bot directly after short wait
+    if (id && String(id).startsWith('guest-')) {
+      setStatus('connected');
+      matchTimerRef.current = setTimeout(() => {
+        launchSilentOpponent();
+      }, MATCH_WAIT_MS);
+      return () => {
+        clearTimeout(matchTimerRef.current);
+        abortRef.current?.abort();
+      };
+    }
+
+    // Real battle — connect WebSocket
     const ws = new WebSocket(`wss://pybattle-backend.onrender.com/ws/battle/${id}/${playerId}`);
     wsRef.current = ws;
 
@@ -230,6 +243,13 @@ function Battle({ join = false }) {
       matchTimerRef.current = setTimeout(() => {
         if (!realJoined) launchSilentOpponent();
       }, MATCH_WAIT_MS);
+    };
+
+    // If WebSocket fails, still launch bot as fallback
+    ws.onerror = () => {
+      matchTimerRef.current = setTimeout(() => {
+        if (!realJoined) launchSilentOpponent();
+      }, 3000);
     };
 
     ws.onmessage = (e) => {
