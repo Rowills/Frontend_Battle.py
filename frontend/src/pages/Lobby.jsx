@@ -5,31 +5,90 @@ import problems from '../problems';
 
 const GUEST_BATTLE_LIMIT = 3;
 
-// Daily challenge: deterministic problem based on today's date
+const css = `
+  * { box-sizing: border-box; }
+
+  /* ── Mobile nav ── */
+  .mob-menu {
+    display: none;
+    flex-direction: column;
+    background: #1a1a2e;
+    border-top: 1px solid #6c63ff33;
+    padding: 12px 16px;
+    gap: 8px;
+  }
+  .mob-menu.open { display: flex; }
+  .mob-btn {
+    background: transparent;
+    border: 1px solid #6c63ff33;
+    color: #aaa;
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+  }
+  .mob-logout { border-color: #ff475755 !important; color: #ff4757 !important; }
+  .mob-register { background: linear-gradient(135deg,#6c63ff,#00d4aa) !important; color: #fff !important; border: none !important; }
+
+  /* ── Responsive grid ── */
+  @media (max-width: 700px) {
+    .mode-grid { grid-template-columns: 1fr !important; }
+    .battle-grid { grid-template-columns: 1fr !important; }
+    .daily-card { flex-direction: column !important; align-items: flex-start !important; gap: 14px !important; }
+    .daily-btn-wrap { width: 100%; }
+    .daily-btn-wrap button { width: 100% !important; }
+    .hero-title { font-size: 22px !important; }
+    .lobby-heading { font-size: 28px !important; }
+    .lobby-subheading { font-size: 14px !important; }
+    .nav-desktop { display: none !important; }
+    .hamburger { display: flex !important; }
+    .content-pad { padding: 24px 14px 40px !important; }
+    .diff-row { flex-wrap: wrap !important; }
+  }
+  @media (min-width: 701px) {
+    .hamburger { display: none !important; }
+    .mob-menu { display: none !important; }
+  }
+
+  .hamburger {
+    background: transparent;
+    border: 1px solid #6c63ff44;
+    border-radius: 10px;
+    color: #fff;
+    padding: 6px 12px;
+    font-size: 20px;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+`;
+
 function getDailyChallenge() {
-  const today = new Date();
-  const dayIndex = Math.floor(today.getTime() / 86400000); // days since epoch
+  const dayIndex = Math.floor(new Date().getTime() / 86400000);
   return problems[dayIndex % problems.length];
 }
 
 function Lobby() {
-  const [battles, setBattles] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [battles, setBattles]             = useState([]);
+  const [loading, setLoading]             = useState(false);
   const [privateLoading, setPrivateLoading] = useState(false);
-  const [shareModal, setShareModal] = useState(null);
-  const [copied, setCopied] = useState(false);
+  const [shareModal, setShareModal]       = useState(null);
+  const [copied, setCopied]               = useState(false);
   const [showGuestWall, setShowGuestWall] = useState(false);
-  const [diffFilter, setDiffFilter] = useState('All');
+  const [diffFilter, setDiffFilter]       = useState('All');
+  const [menuOpen, setMenuOpen]           = useState(false);
   const navigate = useNavigate();
 
   const dailyChallenge = getDailyChallenge();
-
-  const userId = localStorage.getItem('user_id');
-  const username = localStorage.getItem('username');
+  const userId    = localStorage.getItem('user_id');
+  const username  = localStorage.getItem('username');
   const isLoggedIn = !!userId;
 
-  // Guest battle counter (persists in localStorage)
-  const getGuestCount = () => parseInt(localStorage.getItem('guest_battles') || '0');
+  const getGuestCount     = () => parseInt(localStorage.getItem('guest_battles') || '0');
   const incrementGuestCount = () => {
     const next = getGuestCount() + 1;
     localStorage.setItem('guest_battles', String(next));
@@ -37,35 +96,23 @@ function Lobby() {
   };
 
   const fetchBattles = async () => {
-    try {
-      const res = await API.get('/battles/list');
-      setBattles(res.data);
-    } catch (err) {
-      console.error('Failed to fetch battles');
-    }
+    try { const res = await API.get('/battles/list'); setBattles(res.data); }
+    catch { /* silent */ }
   };
 
   useEffect(() => {
     fetchBattles();
-    const interval = setInterval(fetchBattles, 3000);
-    return () => clearInterval(interval);
+    const iv = setInterval(fetchBattles, 3000);
+    return () => clearInterval(iv);
   }, []);
 
-  // Check guest limit — returns true if allowed to proceed
   const checkGuestLimit = () => {
     if (isLoggedIn) return true;
-    const count = getGuestCount();
-    if (count >= GUEST_BATTLE_LIMIT) {
-      setShowGuestWall(true);
-      return false;
-    }
+    if (getGuestCount() >= GUEST_BATTLE_LIMIT) { setShowGuestWall(true); return false; }
     return true;
   };
 
-  const requireLogin = () => {
-    if (!isLoggedIn) { navigate('/login'); return false; }
-    return true;
-  };
+  const requireLogin = () => { if (!isLoggedIn) { navigate('/login'); return false; } return true; };
 
   const createBattle = async (forceProblem = null) => {
     if (!checkGuestLimit()) return;
@@ -74,39 +121,29 @@ function Lobby() {
       let pool = forceProblem ? [forceProblem]
         : diffFilter === 'All' ? problems
         : problems.filter(p => p.difficulty === diffFilter);
-      if (!pool || pool.length === 0) pool = problems; // fallback
-      const randomProblem = pool[Math.floor(Math.random() * pool.length)];
+      if (!pool || pool.length === 0) pool = problems;
+      const prob = pool[Math.floor(Math.random() * pool.length)];
       if (isLoggedIn) {
-        const res = await API.post(`/battles/create?player1_id=${userId}`, {
-          problem_id: randomProblem.id,
-        });
+        const res = await API.post(`/battles/create?player1_id=${userId}`, { problem_id: prob.id });
         incrementGuestCount();
-        navigate(`/battle/${res.data.id}`, { state: { problem: randomProblem } });
+        navigate(`/battle/${res.data.id}`, { state: { problem: prob } });
       } else {
         incrementGuestCount();
-        navigate(`/battle/guest-${Date.now()}`, { state: { problem: randomProblem, isGuest: true } });
+        navigate(`/battle/guest-${Date.now()}`, { state: { problem: prob, isGuest: true } });
       }
-    } catch (err) {
-      console.error('Failed to create battle');
-    }
+    } catch { /* silent */ }
     setLoading(false);
   };
 
-  // Create a private battle and show share link
   const createPrivateBattle = async () => {
     if (!requireLogin()) return;
     setPrivateLoading(true);
     try {
-      const randomProblem = problems[Math.floor(Math.random() * problems.length)];
-      const res = await API.post(`/battles/create?player1_id=${userId}`, {
-        problem_id: randomProblem.id,
-      });
+      const prob = problems[Math.floor(Math.random() * problems.length)];
+      const res  = await API.post(`/battles/create?player1_id=${userId}`, { problem_id: prob.id });
       const battleId = res.data.id;
-      const link = `${window.location.origin}/join/${battleId}`;
-      setShareModal({ battleId, link, problem: randomProblem });
-    } catch (err) {
-      console.error('Failed to create private battle');
-    }
+      setShareModal({ battleId, link: `${window.location.origin}/join/${battleId}`, problem: prob });
+    } catch { /* silent */ }
     setPrivateLoading(false);
   };
 
@@ -114,233 +151,213 @@ function Lobby() {
     if (!requireLogin()) return;
     try {
       const res = await API.post(`/battles/join/${battleId}?player2_id=${userId}`);
-      const problem = problems.find(p => p.id === res.data.problem_id);
-      navigate(`/battle/${battleId}`, { state: { problem } });
-    } catch (err) {
-      console.error('Failed to join battle');
-    }
+      const prob = problems.find(p => p.id === res.data.problem_id);
+      navigate(`/battle/${battleId}`, { state: { problem: prob } });
+    } catch { /* silent */ }
   };
 
   const copyLink = () => {
     navigator.clipboard.writeText(shareModal.link);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const enterPrivateBattle = () => {
-    navigate(`/battle/${shareModal.battleId}`, { state: { problem: shareModal.problem } });
-    setShareModal(null);
+    setCopied(true); setTimeout(() => setCopied(false), 2000);
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('user_id');
-    localStorage.removeItem('username');
-    navigate('/lobby');
+    localStorage.removeItem('user_id'); localStorage.removeItem('username'); navigate('/lobby');
   };
 
-  const guestBattlesLeft = isLoggedIn ? null : Math.max(0, GUEST_BATTLE_LIMIT - getGuestCount());
+  const go = (path) => { setMenuOpen(false); navigate(path); };
+
+  const guestLeft = isLoggedIn ? null : Math.max(0, GUEST_BATTLE_LIMIT - getGuestCount());
 
   return (
-    <div style={styles.container}>
+    <div style={S.page}>
+      <style>{css}</style>
 
-      {/* Guest Wall Modal */}
+      {/* ── Guest Wall Modal ── */}
       {showGuestWall && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.guestWallBox}>
+        <div style={S.overlay}>
+          <div style={S.wallBox}>
             <div style={{ fontSize: '56px', marginBottom: '12px' }}>🏆</div>
-            <h2 style={styles.guestWallTitle}>You've played {GUEST_BATTLE_LIMIT} free battles!</h2>
-            <p style={styles.guestWallText}>
-              Create a free account to keep battling, track your wins, climb the leaderboard, and unlock your full battle history.
-            </p>
-            <div style={styles.guestWallPerks}>
-              <div style={styles.perk}>✅ Unlimited battles</div>
-              <div style={styles.perk}>🏆 Leaderboard ranking</div>
-              <div style={styles.perk}>📊 Win/loss history</div>
-              <div style={styles.perk}>👤 Public profile</div>
+            <h2 style={S.wallTitle}>You've played {GUEST_BATTLE_LIMIT} free battles!</h2>
+            <p style={S.wallText}>Create a free account to keep battling, track your wins, and climb the leaderboard.</p>
+            <div style={S.perksGrid}>
+              {['✅ Unlimited battles','🏆 Leaderboard ranking','📊 Win/loss history','👤 Public profile'].map(p => (
+                <div key={p} style={S.perk}>{p}</div>
+              ))}
             </div>
-            <button style={styles.guestRegisterBtn} onClick={() => navigate('/register')}>
-              🚀 Create Free Account
-            </button>
-            <button style={styles.guestLoginBtn} onClick={() => navigate('/login')}>
-              Already have an account? Login
-            </button>
+            <button style={S.wallRegBtn} onClick={() => navigate('/register')}>🚀 Create Free Account</button>
+            <button style={S.wallLoginBtn} onClick={() => navigate('/login')}>Already have an account? Login</button>
           </div>
         </div>
       )}
 
-      {/* Share Link Modal */}
+      {/* ── Share Modal ── */}
       {shareModal && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.modalBox}>
+        <div style={S.overlay}>
+          <div style={S.modal}>
             <div style={{ fontSize: '50px', marginBottom: '12px' }}>🔗</div>
-            <h2 style={styles.modalTitle}>Private Battle Created!</h2>
-            <p style={styles.modalText}>Share this link with your friend. They click it and join your battle directly!</p>
-
-            <div style={styles.linkBox}>
-              <span style={styles.linkText}>{shareModal.link}</span>
-            </div>
-
-            <button style={styles.copyBtn} onClick={copyLink}>
-              {copied ? '✅ Copied!' : '📋 Copy Link'}
-            </button>
-
-            <p style={styles.modalHint}>Waiting for your friend to click the link...</p>
-
-            <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-              <button style={styles.enterBtn} onClick={enterPrivateBattle}>
-                ⚔️ Enter Battle Room
-              </button>
-              <button style={styles.cancelBtn} onClick={() => setShareModal(null)}>
-                Cancel
-              </button>
+            <h2 style={S.modalTitle}>Private Battle Created!</h2>
+            <p style={S.modalText}>Share this link with your friend to let them join directly!</p>
+            <div style={S.linkBox}><span style={S.linkText}>{shareModal.link}</span></div>
+            <button style={S.copyBtn} onClick={copyLink}>{copied ? '✅ Copied!' : '📋 Copy Link'}</button>
+            <p style={{ color: '#aaa', fontSize: '12px', marginBottom: '10px' }}>Waiting for your friend to click the link...</p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button style={S.enterBtn} onClick={() => { navigate(`/battle/${shareModal.battleId}`, { state: { problem: shareModal.problem } }); setShareModal(null); }}>⚔️ Enter Battle Room</button>
+              <button style={S.cancelBtn} onClick={() => setShareModal(null)}>Cancel</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Navbar */}
-      <div style={styles.navbar}>
-        <h2 style={styles.navLogo}>⚔️ PyBattle</h2>
-        <div style={styles.navRight}>
+      {/* ── Navbar ── */}
+      <nav style={S.navbar}>
+        <span style={S.logo} onClick={() => navigate('/lobby')}>⚔️ PyBattle</span>
+
+        {/* Desktop nav */}
+        <div className="nav-desktop" style={S.navDesktop}>
           {isLoggedIn ? (
             <>
-              <span style={styles.welcome}>👋 {username}</span>
-              <button style={styles.navBtn} onClick={() => navigate('/practice')}>🧪 Practice</button>
-              <button style={styles.navBtn} onClick={() => navigate('/leaderboard')}>🏆 Leaderboard</button>
-              <button style={styles.navBtn} onClick={() => navigate('/about')}>ℹ️ About</button>
-              <button style={styles.navBtn} onClick={() => navigate('/profile')}>👤 Profile</button>
-              <button style={styles.logoutBtn} onClick={handleLogout}>🚪 Logout</button>
+              <span style={S.welcome}>👋 {username}</span>
+              <button style={S.navBtn} onClick={() => navigate('/practice')}>🧪 Practice</button>
+              <button style={S.navBtn} onClick={() => navigate('/leaderboard')}>🏆 Leaderboard</button>
+              <button style={S.navBtn} onClick={() => navigate('/about')}>ℹ️ About</button>
+              <button style={S.navBtn} onClick={() => navigate('/profile')}>👤 Profile</button>
+              <button style={S.logoutBtn} onClick={handleLogout}>🚪 Logout</button>
             </>
           ) : (
             <>
-              <button style={styles.navBtn} onClick={() => navigate('/practice')}>🧪 Practice</button>
-              <button style={styles.navBtn} onClick={() => navigate('/leaderboard')}>🏆 Leaderboard</button>
-              <button style={styles.navBtn} onClick={() => navigate('/about')}>ℹ️ About</button>
-              <button style={styles.loginBtn} onClick={() => navigate('/login')}>Login</button>
-              <button style={styles.registerBtn} onClick={() => navigate('/register')}>Register</button>
+              <button style={S.navBtn} onClick={() => navigate('/practice')}>🧪 Practice</button>
+              <button style={S.navBtn} onClick={() => navigate('/leaderboard')}>🏆 Leaderboard</button>
+              <button style={S.navBtn} onClick={() => navigate('/about')}>ℹ️ About</button>
+              <button style={S.loginBtn} onClick={() => navigate('/login')}>Login</button>
+              <button style={S.registerBtn} onClick={() => navigate('/register')}>Register</button>
             </>
           )}
         </div>
+
+        {/* Hamburger */}
+        <button className="hamburger" onClick={() => setMenuOpen(o => !o)}>
+          {menuOpen ? '✕' : '☰'}
+        </button>
+      </nav>
+
+      {/* Mobile dropdown menu */}
+      <div className={`mob-menu${menuOpen ? ' open' : ''}`}>
+        {isLoggedIn && <span style={{ color: '#00d4aa', fontWeight: 700, fontSize: 14, padding: '4px 0' }}>👋 {username}</span>}
+        <button className="mob-btn" onClick={() => go('/practice')}>🧪 Practice</button>
+        <button className="mob-btn" onClick={() => go('/leaderboard')}>🏆 Leaderboard</button>
+        <button className="mob-btn" onClick={() => go('/about')}>ℹ️ About</button>
+        {isLoggedIn ? (
+          <>
+            <button className="mob-btn" onClick={() => go('/profile')}>👤 Profile</button>
+            <button className="mob-btn mob-logout" onClick={() => { handleLogout(); setMenuOpen(false); }}>🚪 Logout</button>
+          </>
+        ) : (
+          <>
+            <button className="mob-btn" onClick={() => go('/login')}>Login</button>
+            <button className="mob-btn mob-register" onClick={() => go('/register')}>🚀 Register Free</button>
+          </>
+        )}
       </div>
 
-      {/* Guest battle counter strip */}
-      {!isLoggedIn && guestBattlesLeft > 0 && (
-        <div style={styles.guestStrip}>
-          🎮 You have <strong style={{ color: '#00d4aa', margin: '0 4px' }}>{guestBattlesLeft} free battle{guestBattlesLeft !== 1 ? 's' : ''}</strong> left as a guest —&nbsp;
-          <span style={{ color: '#6c63ff', cursor: 'pointer', fontWeight: 700 }} onClick={() => navigate('/register')}>
-            Register free
-          </span> to play unlimited!
+      {/* Guest strip */}
+      {!isLoggedIn && guestLeft > 0 && (
+        <div style={S.guestStrip}>
+          🎮 <strong style={{ color: '#00d4aa' }}>{guestLeft} free battle{guestLeft !== 1 ? 's' : ''}</strong> left as guest —&nbsp;
+          <span style={{ color: '#6c63ff', cursor: 'pointer', fontWeight: 700 }} onClick={() => navigate('/register')}>Register free</span> to play unlimited!
         </div>
       )}
 
-      {/* Hero banner for guests */}
+      {/* Hero for guests */}
       {!isLoggedIn && (
-        <div style={styles.heroBanner}>
-          <h2 style={styles.heroTitle}>⚔️ Real-time 1v1 Python Battles</h2>
-          <p style={styles.heroText}>No account needed to start — jump straight into a battle!</p>
-          <button style={styles.heroBtn} onClick={createBattle}>
-            ⚔️ Play Now (Free)
-          </button>
+        <div style={S.hero}>
+          <h2 className="hero-title" style={S.heroTitle}>⚔️ Real-time 1v1 Python Battles</h2>
+          <p style={S.heroText}>No account needed — jump straight in!</p>
+          <button style={S.heroBtn} onClick={createBattle}>⚔️ Play Now (Free)</button>
         </div>
       )}
 
-      {/* Main Content */}
-      <div style={styles.content}>
-        <h1 style={styles.heading}>Battle Lobby</h1>
-        <p style={styles.subheading}>Challenge someone or sharpen your skills!</p>
+      {/* Main content */}
+      <div className="content-pad" style={S.content}>
+        <h1 className="lobby-heading" style={S.heading}>Battle Lobby</h1>
+        <p className="lobby-subheading" style={S.subheading}>Challenge someone or sharpen your skills!</p>
 
-        {/* Daily Challenge Card */}
-        <div style={styles.dailyCard}>
-          <div style={styles.dailyLeft}>
-            <div style={styles.dailyEmoji}>🌟</div>
+        {/* Daily Challenge */}
+        <div className="daily-card" style={S.dailyCard}>
+          <div style={S.dailyLeft}>
+            <span style={{ fontSize: 36 }}>🌟</span>
             <div>
-              <p style={styles.dailyLabel}>DAILY CHALLENGE</p>
-              <p style={styles.dailyTitle}>{dailyChallenge.title}</p>
-              <p style={styles.dailyDiff}>{dailyChallenge.difficulty}</p>
+              <p style={S.dailyLabel}>DAILY CHALLENGE</p>
+              <p style={S.dailyTitle}>{dailyChallenge.title}</p>
+              <p style={S.dailyDiff}>{dailyChallenge.difficulty}</p>
             </div>
           </div>
-          <button style={styles.dailyBtn} onClick={() => createBattle(dailyChallenge)} disabled={loading}>
-            ⚔️ Battle It
-          </button>
+          <div className="daily-btn-wrap">
+            <button style={S.dailyBtn} onClick={() => createBattle(dailyChallenge)} disabled={loading}>
+              ⚔️ Battle It
+            </button>
+          </div>
         </div>
 
-        {/* Battle Mode Buttons */}
-        <div style={styles.btnRow}>
-          <div style={styles.modeCard}>
-            <div style={{ fontSize: '36px', marginBottom: '10px' }}>🌍</div>
-            <h3 style={styles.modeTitle}>Public Battle</h3>
-            <p style={styles.modeDesc}>1v1 real-time battle against a random opponent</p>
-            {/* Difficulty filter */}
-            <div style={styles.diffRow}>
+        {/* Mode cards */}
+        <div className="mode-grid" style={S.modeGrid}>
+          {/* Public Battle */}
+          <div style={S.modeCard}>
+            <div style={{ fontSize: 36, marginBottom: 10 }}>🌍</div>
+            <h3 style={S.modeTitle}>Public Battle</h3>
+            <p style={S.modeDesc}>1v1 real-time battle against a random opponent</p>
+            <div className="diff-row" style={S.diffRow}>
               {['All','Easy','Medium','Hard'].map(d => (
-                <button
-                  key={d}
-                  style={{ ...styles.diffBtn, ...(diffFilter === d ? styles.diffBtnActive : {}) }}
-                  onClick={() => setDiffFilter(d)}
-                >{d}</button>
+                <button key={d}
+                  style={{ ...S.diffBtn, ...(diffFilter === d ? S.diffActive : {}) }}
+                  onClick={() => setDiffFilter(d)}>{d}</button>
               ))}
             </div>
-            <button
-              className="btn-primary"
-              style={styles.modeBtn}
-              onClick={() => createBattle()}
-              disabled={loading}
-            >
+            <button style={S.primaryBtn} onClick={() => createBattle()} disabled={loading}>
               {loading ? 'Creating...' : '⚔️ Create Battle'}
             </button>
           </div>
 
-          <div style={styles.modeCard}>
-            <div style={{ fontSize: '36px', marginBottom: '10px' }}>👫</div>
-            <h3 style={styles.modeTitle}>Play with Friend</h3>
-            <p style={styles.modeDesc}>Create a private room and share the link with your friend</p>
-            <button
-              style={styles.friendBtn}
-              onClick={createPrivateBattle}
-              disabled={privateLoading}
-            >
+          {/* Play with Friend */}
+          <div style={S.modeCard}>
+            <div style={{ fontSize: 36, marginBottom: 10 }}>👫</div>
+            <h3 style={S.modeTitle}>Play with Friend</h3>
+            <p style={S.modeDesc}>Create a private room and share the link with a friend</p>
+            <button style={S.friendBtn} onClick={createPrivateBattle} disabled={privateLoading}>
               {privateLoading ? 'Creating...' : '🔗 Create Private Battle'}
             </button>
           </div>
 
-          <div style={styles.modeCard}>
-            <div style={{ fontSize: '36px', marginBottom: '10px' }}>🧪</div>
-            <h3 style={styles.modeTitle}>Practice Mode</h3>
-            <p style={styles.modeDesc}>Pick any problem and solve it solo. No timer, no pressure.</p>
-            <button style={styles.practiceBtn} onClick={() => navigate('/practice')}>
-              📚 Open Practice
-            </button>
+          {/* Practice */}
+          <div style={S.modeCard}>
+            <div style={{ fontSize: 36, marginBottom: 10 }}>🧪</div>
+            <h3 style={S.modeTitle}>Practice Mode</h3>
+            <p style={S.modeDesc}>Pick any problem and solve it solo. No timer, no pressure.</p>
+            <button style={S.practiceBtn} onClick={() => navigate('/practice')}>📚 Open Practice</button>
           </div>
         </div>
 
         {!isLoggedIn && (
-          <p style={styles.loginHint}>🔒 <span style={{ color: '#6c63ff', cursor: 'pointer' }} onClick={() => navigate('/login')}>Login</span> to create public battles and track your wins!</p>
+          <p style={S.hint}>🔒 <span style={{ color: '#6c63ff', cursor: 'pointer' }} onClick={() => navigate('/login')}>Login</span> to create public battles and track your wins!</p>
         )}
 
-        {/* Open Battles List */}
-        <h2 style={styles.listTitle}>Open Public Battles</h2>
-
+        {/* Open battles */}
+        <h2 style={S.listTitle}>Open Public Battles</h2>
         {battles.length === 0 ? (
-          <div style={styles.emptyCard}>
-            <p style={{ fontSize: '40px', marginBottom: '10px' }}>🎮</p>
-            <p style={{ fontWeight: '700', marginBottom: '5px' }}>No open battles right now.</p>
-            <p style={{ fontSize: '14px' }}>Be the first to create one!</p>
+          <div style={S.emptyCard}>
+            <p style={{ fontSize: 40, marginBottom: 10 }}>🎮</p>
+            <p style={{ fontWeight: 700 }}>No open battles right now.</p>
+            <p style={{ fontSize: 14 }}>Be the first to create one!</p>
           </div>
         ) : (
-          <div style={styles.grid}>
-            {battles.slice(0, 6).map((battle) => (
-              <div key={battle.id} style={styles.battleCard}>
-                <div style={styles.battleIcon}>⚔️</div>
-                <p style={styles.battleTitle}>Battle #{battle.id}</p>
-                <p style={styles.battleInfo}>Problem #{battle.problem_id} • Waiting...</p>
-                <p style={styles.battleStatus}>🟢 Open</p>
-                <button
-                  className="btn-primary"
-                  style={styles.joinBtn}
-                  onClick={() => joinBattle(battle.id)}
-                >
-                  Join Battle
-                </button>
+          <div className="battle-grid" style={S.battleGrid}>
+            {battles.slice(0, 6).map(b => (
+              <div key={b.id} style={S.battleCard}>
+                <div style={{ fontSize: 36, marginBottom: 10 }}>⚔️</div>
+                <p style={S.battleTitle}>Battle #{b.id}</p>
+                <p style={S.battleInfo}>Problem #{b.problem_id} • Waiting...</p>
+                <p style={{ color: '#00d4aa', fontWeight: 600, marginBottom: 14 }}>🟢 Open</p>
+                <button style={S.joinBtn} onClick={() => joinBattle(b.id)}>Join Battle</button>
               </div>
             ))}
           </div>
@@ -350,189 +367,85 @@ function Lobby() {
   );
 }
 
-const styles = {
-  container: { minHeight: '100vh', background: '#0f0f1a' },
+const S = {
+  page: { minHeight: '100vh', background: '#0f0f1a', fontFamily: 'sans-serif' },
 
-  // Modal
-  modalOverlay: {
-    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-    background: 'rgba(0,0,0,0.85)', display: 'flex',
-    alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px',
-  },
-  modalBox: {
-    background: '#1a1a2e', borderRadius: '24px', padding: '40px 30px',
-    textAlign: 'center', width: '100%', maxWidth: '480px',
-    border: '2px solid #6c63ff55', boxShadow: '0 0 60px #6c63ff33',
-  },
-  modalTitle: { color: '#ffffff', fontSize: '24px', fontWeight: '900', marginBottom: '10px' },
-  modalText: { color: '#aaaaaa', fontSize: '14px', marginBottom: '20px', lineHeight: '1.6' },
-  linkBox: {
-    background: '#0f0f1a', border: '1px solid #6c63ff55', borderRadius: '12px',
-    padding: '12px 16px', marginBottom: '14px', wordBreak: 'break-all',
-  },
-  linkText: { color: '#00d4aa', fontSize: '13px', fontFamily: 'monospace' },
-  copyBtn: {
-    background: 'linear-gradient(135deg, #6c63ff, #00d4aa)',
-    border: 'none', color: '#fff', padding: '10px 28px',
-    borderRadius: '20px', fontWeight: '700', cursor: 'pointer', fontSize: '14px',
-    width: '100%', marginBottom: '12px',
-  },
-  modalHint: { color: '#aaaaaa', fontSize: '12px', marginBottom: '4px' },
-  enterBtn: {
-    flex: 1, background: 'transparent', border: '1px solid #00d4aa',
-    color: '#00d4aa', padding: '10px', borderRadius: '20px',
-    fontWeight: '700', cursor: 'pointer', fontSize: '13px',
-  },
-  cancelBtn: {
-    flex: 1, background: 'transparent', border: '1px solid #ff4757',
-    color: '#ff4757', padding: '10px', borderRadius: '20px',
-    fontWeight: '700', cursor: 'pointer', fontSize: '13px',
-  },
+  // Modals
+  overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20 },
+  wallBox: { background: 'linear-gradient(135deg,#1a1a2e,#16213e)', borderRadius: 24, padding: '36px 24px', textAlign: 'center', width: '100%', maxWidth: 460, border: '2px solid #6c63ff', boxShadow: '0 0 60px #6c63ff44' },
+  wallTitle: { color: '#fff', fontSize: 22, fontWeight: 900, marginBottom: 12 },
+  wallText: { color: '#aaa', fontSize: 14, lineHeight: 1.7, marginBottom: 20 },
+  perksGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 },
+  perk: { background: '#0f0f1a', border: '1px solid #6c63ff33', borderRadius: 10, padding: '10px 12px', color: '#00d4aa', fontSize: 13, fontWeight: 600 },
+  wallRegBtn: { width: '100%', background: 'linear-gradient(135deg,#6c63ff,#00d4aa)', border: 'none', color: '#fff', padding: 14, borderRadius: 25, fontSize: 15, fontWeight: 700, cursor: 'pointer', marginBottom: 10 },
+  wallLoginBtn: { width: '100%', background: 'transparent', border: '1px solid #6c63ff44', color: '#aaa', padding: 10, borderRadius: 25, fontSize: 13, cursor: 'pointer' },
+
+  modal: { background: '#1a1a2e', borderRadius: 24, padding: '36px 24px', textAlign: 'center', width: '100%', maxWidth: 460, border: '2px solid #6c63ff55', boxShadow: '0 0 60px #6c63ff33' },
+  modalTitle: { color: '#fff', fontSize: 22, fontWeight: 900, marginBottom: 10 },
+  modalText: { color: '#aaa', fontSize: 14, marginBottom: 18, lineHeight: 1.6 },
+  linkBox: { background: '#0f0f1a', border: '1px solid #6c63ff44', borderRadius: 12, padding: '10px 14px', marginBottom: 12, wordBreak: 'break-all' },
+  linkText: { color: '#00d4aa', fontSize: 12, fontFamily: 'monospace' },
+  copyBtn: { width: '100%', background: 'linear-gradient(135deg,#6c63ff,#00d4aa)', border: 'none', color: '#fff', padding: '10px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 14, marginBottom: 12 },
+  enterBtn: { flex: 1, background: 'transparent', border: '1px solid #00d4aa', color: '#00d4aa', padding: 10, borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 13 },
+  cancelBtn: { flex: 1, background: 'transparent', border: '1px solid #ff4757', color: '#ff4757', padding: 10, borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 13 },
 
   // Navbar
-  navbar: {
-    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    padding: '15px 30px', background: '#1a1a2e', borderBottom: '1px solid #6c63ff55',
-  },
-  navLogo: { fontSize: '22px', fontWeight: '900', color: '#6c63ff' },
-  navRight: { display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' },
-  welcome: { color: '#00d4aa', fontWeight: '600', fontSize: '14px' },
-  navBtn: {
-    background: 'transparent', border: '1px solid #6c63ff55',
-    color: '#aaaaaa', padding: '6px 14px', borderRadius: '20px',
-    cursor: 'pointer', fontWeight: '600', fontSize: '13px',
-  },
-  loginBtn: {
-    background: 'transparent', border: '1px solid #6c63ff',
-    color: '#6c63ff', padding: '6px 16px', borderRadius: '20px',
-    cursor: 'pointer', fontWeight: '700', fontSize: '13px',
-  },
-  registerBtn: {
-    background: 'linear-gradient(135deg, #6c63ff, #00d4aa)',
-    border: 'none', color: '#fff', padding: '6px 16px', borderRadius: '20px',
-    cursor: 'pointer', fontWeight: '700', fontSize: '13px',
-  },
-  logoutBtn: {
-    background: 'transparent', border: '1px solid #ff4757',
-    color: '#ff4757', padding: '6px 14px', borderRadius: '20px',
-    cursor: 'pointer', fontWeight: '600', fontSize: '13px',
-  },
+  navbar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', background: '#1a1a2e', borderBottom: '1px solid #6c63ff55', position: 'sticky', top: 0, zIndex: 100 },
+  logo: { fontSize: 20, fontWeight: 900, color: '#6c63ff', cursor: 'pointer' },
+  navDesktop: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  welcome: { color: '#00d4aa', fontWeight: 600, fontSize: 13 },
+  navBtn: { background: 'transparent', border: '1px solid #6c63ff44', color: '#aaa', padding: '6px 12px', borderRadius: 20, cursor: 'pointer', fontSize: 12, fontWeight: 600 },
+  loginBtn: { background: 'transparent', border: '1px solid #6c63ff', color: '#6c63ff', padding: '6px 14px', borderRadius: 20, cursor: 'pointer', fontWeight: 700, fontSize: 13 },
+  registerBtn: { background: 'linear-gradient(135deg,#6c63ff,#00d4aa)', border: 'none', color: '#fff', padding: '6px 14px', borderRadius: 20, cursor: 'pointer', fontWeight: 700, fontSize: 13 },
+  logoutBtn: { background: 'transparent', border: '1px solid #ff475744', color: '#ff4757', padding: '6px 12px', borderRadius: 20, cursor: 'pointer', fontSize: 12, fontWeight: 600 },
 
-  // Guest strip + wall
-  guestStrip: {
-    background: '#1a1a2e', borderBottom: '1px solid #6c63ff33',
-    padding: '10px 20px', textAlign: 'center', color: '#aaaaaa', fontSize: '14px',
-  },
-  guestWallBox: {
-    background: 'linear-gradient(135deg, #1a1a2e, #16213e)',
-    borderRadius: '24px', padding: '44px 32px', textAlign: 'center',
-    width: '100%', maxWidth: '480px',
-    border: '2px solid #6c63ff', boxShadow: '0 0 60px #6c63ff44',
-  },
-  guestWallTitle: { color: '#ffffff', fontSize: '24px', fontWeight: '900', marginBottom: '12px' },
-  guestWallText: { color: '#aaaaaa', fontSize: '14px', lineHeight: '1.7', marginBottom: '20px' },
-  guestWallPerks: {
-    display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '24px',
-  },
-  perk: {
-    background: '#0f0f1a', border: '1px solid #6c63ff33', borderRadius: '10px',
-    padding: '10px 12px', color: '#00d4aa', fontSize: '13px', fontWeight: '600',
-  },
-  guestRegisterBtn: {
-    width: '100%', background: 'linear-gradient(135deg, #6c63ff, #00d4aa)',
-    border: 'none', color: '#fff', padding: '14px', borderRadius: '25px',
-    fontSize: '16px', fontWeight: '700', cursor: 'pointer', marginBottom: '12px',
-  },
-  guestLoginBtn: {
-    width: '100%', background: 'transparent', border: '1px solid #6c63ff55',
-    color: '#aaaaaa', padding: '10px', borderRadius: '25px',
-    fontSize: '13px', fontWeight: '600', cursor: 'pointer',
-  },
+  // Guest strip
+  guestStrip: { background: '#1a1a2e', borderBottom: '1px solid #6c63ff22', padding: '10px 20px', textAlign: 'center', color: '#aaa', fontSize: 13 },
 
   // Hero
-  heroBanner: {
-    background: 'linear-gradient(135deg, #1a1a2e, #16213e)',
-    borderBottom: '1px solid #6c63ff33', padding: '60px 20px', textAlign: 'center',
-  },
-  heroTitle: { fontSize: '30px', fontWeight: '900', color: '#ffffff', marginBottom: '14px' },
-  heroText: { color: '#aaaaaa', fontSize: '16px', marginBottom: '28px', lineHeight: '1.6' },
-  heroBtn: {
-    background: 'linear-gradient(135deg, #6c63ff, #00d4aa)',
-    border: 'none', color: '#fff', padding: '14px 36px',
-    borderRadius: '25px', fontSize: '16px', fontWeight: '700', cursor: 'pointer',
-  },
+  hero: { background: 'linear-gradient(135deg,#1a1a2e,#16213e)', borderBottom: '1px solid #6c63ff22', padding: '48px 20px', textAlign: 'center' },
+  heroTitle: { fontSize: 28, fontWeight: 900, color: '#fff', marginBottom: 12 },
+  heroText: { color: '#aaa', fontSize: 15, marginBottom: 24 },
+  heroBtn: { background: 'linear-gradient(135deg,#6c63ff,#00d4aa)', border: 'none', color: '#fff', padding: '12px 32px', borderRadius: 25, fontSize: 15, fontWeight: 700, cursor: 'pointer' },
 
   // Content
-  content: { maxWidth: '900px', margin: '0 auto', padding: '60px 20px 40px', textAlign: 'center' },
-  heading: { fontSize: '42px', fontWeight: '900', color: '#ffffff', marginBottom: '12px' },
-  subheading: { color: '#aaaaaa', marginBottom: '36px', fontSize: '16px' },
+  content: { maxWidth: 900, margin: '0 auto', padding: '40px 20px', textAlign: 'center' },
+  heading: { fontSize: 36, fontWeight: 900, color: '#fff', marginBottom: 10 },
+  subheading: { color: '#aaa', marginBottom: 28, fontSize: 15 },
 
   // Daily challenge
-  dailyCard: {
-    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    background: 'linear-gradient(135deg, #1a1a2e, #16213e)',
-    border: '1px solid #ffa50244', borderRadius: '16px', padding: '20px 24px',
-    marginBottom: '24px',
-  },
-  dailyLeft: { display: 'flex', alignItems: 'center', gap: '16px' },
-  dailyEmoji: { fontSize: '36px' },
-  dailyLabel: { color: '#ffa502', fontSize: '11px', fontWeight: '800', letterSpacing: '1px', margin: '0 0 4px' },
-  dailyTitle: { color: '#fff', fontWeight: '700', fontSize: '18px', margin: '0 0 4px' },
-  dailyDiff: { color: '#aaa', fontSize: '13px', margin: 0 },
-  dailyBtn: {
-    background: 'linear-gradient(135deg, #ffa502, #ff6b35)', border: 'none',
-    color: '#fff', padding: '10px 22px', borderRadius: '20px',
-    fontWeight: '700', fontSize: '14px', cursor: 'pointer',
-  },
+  dailyCard: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg,#1a1a2e,#16213e)', border: '1px solid #ffa50244', borderRadius: 16, padding: '18px 20px', marginBottom: 24, gap: 14, textAlign: 'left' },
+  dailyLeft: { display: 'flex', alignItems: 'center', gap: 14 },
+  dailyLabel: { color: '#ffa502', fontSize: 10, fontWeight: 800, letterSpacing: 1, margin: '0 0 4px' },
+  dailyTitle: { color: '#fff', fontWeight: 700, fontSize: 17, margin: '0 0 4px' },
+  dailyDiff: { color: '#aaa', fontSize: 12, margin: 0 },
+  dailyBtn: { background: 'linear-gradient(135deg,#ffa502,#ff6b35)', border: 'none', color: '#fff', padding: '10px 20px', borderRadius: 20, fontWeight: 700, fontSize: 14, cursor: 'pointer', whiteSpace: 'nowrap' },
+
+  // Mode grid
+  modeGrid: { display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginBottom: 16 },
+  modeCard: { background: '#1a1a2e', borderRadius: 20, padding: '24px 16px', border: '1px solid #6c63ff22', textAlign: 'center' },
+  modeTitle: { color: '#fff', fontSize: 17, fontWeight: 700, marginBottom: 8 },
+  modeDesc: { color: '#aaa', fontSize: 13, marginBottom: 18, lineHeight: 1.5 },
 
   // Difficulty filter
-  diffRow: { display: 'flex', gap: '6px', marginBottom: '14px', justifyContent: 'center' },
-  diffBtn: { background: 'transparent', border: '1px solid #6c63ff33', color: '#888', padding: '4px 12px', borderRadius: '20px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' },
-  diffBtnActive: { background: '#6c63ff', color: '#fff', border: '1px solid #6c63ff' },
+  diffRow: { display: 'flex', gap: 6, marginBottom: 14, justifyContent: 'center' },
+  diffBtn: { background: 'transparent', border: '1px solid #6c63ff33', color: '#888', padding: '4px 11px', borderRadius: 20, cursor: 'pointer', fontSize: 12, fontWeight: 600 },
+  diffActive: { background: '#6c63ff', color: '#fff', border: '1px solid #6c63ff' },
 
-  // Practice button
-  practiceBtn: {
-    width: '100%', padding: '12px 0', borderRadius: '25px', fontWeight: '700',
-    fontSize: '14px', cursor: 'pointer', border: '2px solid #00d4aa',
-    background: 'transparent', color: '#00d4aa',
-  },
+  // Buttons inside mode cards
+  primaryBtn: { width: '100%', background: 'linear-gradient(135deg,#6c63ff,#00d4aa)', border: 'none', color: '#fff', padding: '12px 0', borderRadius: 25, fontWeight: 700, fontSize: 14, cursor: 'pointer' },
+  friendBtn: { width: '100%', background: 'transparent', border: '2px solid #6c63ff', color: '#6c63ff', padding: '12px 0', borderRadius: 25, fontWeight: 700, fontSize: 14, cursor: 'pointer' },
+  practiceBtn: { width: '100%', background: 'transparent', border: '2px solid #00d4aa', color: '#00d4aa', padding: '12px 0', borderRadius: 25, fontWeight: 700, fontSize: 14, cursor: 'pointer' },
 
-  // Mode cards
-  btnRow: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '16px' },
-  modeCard: {
-    background: '#1a1a2e', borderRadius: '20px', padding: '28px 20px',
-    border: '1px solid #6c63ff33', textAlign: 'center',
-  },
-  modeTitle: { color: '#ffffff', fontSize: '18px', fontWeight: '700', marginBottom: '8px' },
-  modeDesc: { color: '#aaaaaa', fontSize: '13px', marginBottom: '20px', lineHeight: '1.5' },
-  modeBtn: { width: '100%', padding: '12px 0' },
-  friendBtn: {
-    width: '100%', padding: '12px 0', borderRadius: '25px', fontWeight: '700',
-    fontSize: '14px', cursor: 'pointer', border: '2px solid #6c63ff',
-    background: 'transparent', color: '#6c63ff',
-    transition: 'all 0.2s',
-  },
+  hint: { color: '#aaa', fontSize: 13, marginBottom: 28, background: '#6c63ff11', border: '1px solid #6c63ff22', borderRadius: 10, padding: '10px 16px', display: 'inline-block' },
+  listTitle: { fontSize: 22, fontWeight: 700, color: '#6c63ff', marginBottom: 20, marginTop: 16 },
+  emptyCard: { background: '#1a1a2e', borderRadius: 20, padding: 40, color: '#aaa', border: '1px solid #6c63ff22' },
 
-  loginHint: {
-    color: '#aaaaaa', fontSize: '13px', marginBottom: '30px',
-    background: '#6c63ff11', border: '1px solid #6c63ff33',
-    borderRadius: '10px', padding: '10px 16px', display: 'inline-block',
-  },
-  listTitle: { fontSize: '24px', fontWeight: '700', color: '#6c63ff', marginBottom: '24px', marginTop: '20px' },
-  emptyCard: {
-    background: '#1a1a2e', borderRadius: '20px', padding: '40px',
-    color: '#aaaaaa', border: '1px solid #6c63ff33',
-  },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '24px' },
-  battleCard: {
-    background: '#1a1a2e', borderRadius: '20px', padding: '28px 20px',
-    border: '1px solid #6c63ff55', textAlign: 'center',
-  },
-  battleIcon: { fontSize: '40px', marginBottom: '14px' },
-  battleTitle: { fontSize: '18px', fontWeight: '700', color: '#ffffff', marginBottom: '8px' },
-  battleInfo: { color: '#aaaaaa', fontSize: '13px', marginBottom: '8px' },
-  battleStatus: { color: '#00d4aa', marginBottom: '18px', fontWeight: '600', fontSize: '14px' },
-  joinBtn: { maxWidth: '160px', margin: '0 auto', padding: '10px 20px' },
+  battleGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))', gap: 20 },
+  battleCard: { background: '#1a1a2e', borderRadius: 20, padding: '24px 16px', border: '1px solid #6c63ff44', textAlign: 'center' },
+  battleTitle: { fontSize: 17, fontWeight: 700, color: '#fff', marginBottom: 6 },
+  battleInfo: { color: '#aaa', fontSize: 13, marginBottom: 6 },
+  joinBtn: { background: 'linear-gradient(135deg,#6c63ff,#00d4aa)', border: 'none', color: '#fff', padding: '10px 24px', borderRadius: 20, fontWeight: 700, fontSize: 14, cursor: 'pointer' },
 };
 
 export default Lobby;
