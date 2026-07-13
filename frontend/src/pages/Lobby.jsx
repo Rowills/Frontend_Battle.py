@@ -177,6 +177,7 @@ function Lobby() {
       {showGuestWall && (
         <div style={S.overlay}>
           <div style={S.wallBox}>
+            <button onClick={() => setShowGuestWall(false)} style={{ position:'absolute', top:14, right:18, background:'transparent', border:'none', color:'#666', fontSize:22, cursor:'pointer' }}>✕</button>
             <div style={{ fontSize: '56px', marginBottom: '12px' }}>🏆</div>
             <h2 style={S.wallTitle}>You've played {GUEST_BATTLE_LIMIT} free battles!</h2>
             <p style={S.wallText}>Create a free account to keep battling, track your wins, and climb the leaderboard.</p>
@@ -273,7 +274,9 @@ function Lobby() {
         <div style={S.hero}>
           <h2 className="hero-title" style={S.heroTitle}>⚔️ Real-time 1v1 Python Battles</h2>
           <p style={S.heroText}>No account needed — jump straight in!</p>
-          <button style={S.heroBtn} onClick={createBattle}>⚔️ Play Now (Free)</button>
+          <button style={S.heroBtn} onClick={createBattle} disabled={loading}>
+      {loading ? 'Starting...' : '⚔️ Play Now (Free)'}
+    </button>
         </div>
       )}
 
@@ -372,7 +375,7 @@ const S = {
 
   // Modals
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20 },
-  wallBox: { background: 'linear-gradient(135deg,#1a1a2e,#16213e)', borderRadius: 24, padding: '36px 24px', textAlign: 'center', width: '100%', maxWidth: 460, border: '2px solid #6c63ff', boxShadow: '0 0 60px #6c63ff44' },
+  wallBox: { position:'relative', background: 'linear-gradient(135deg,#1a1a2e,#16213e)', borderRadius: 24, padding: '36px 24px', textAlign: 'center', width: '100%', maxWidth: 460, border: '2px solid #6c63ff', boxShadow: '0 0 60px #6c63ff44' },
   wallTitle: { color: '#fff', fontSize: 22, fontWeight: 900, marginBottom: 12 },
   wallText: { color: '#aaa', fontSize: 14, lineHeight: 1.7, marginBottom: 20 },
   perksGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 },
