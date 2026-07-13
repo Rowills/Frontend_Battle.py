@@ -269,7 +269,7 @@ function Lobby() {
         <div style={S.hero}>
           <h2 className="hero-title" style={S.heroTitle}>⚔️ Real-time 1v1 Python Battles</h2>
           <p style={S.heroText}>No account needed — jump straight in!</p>
-          <button style={S.heroBtn} onClick={createBattle} disabled={loading}>
+          <button style={S.heroBtn} onClick={() => createBattle()} disabled={loading}>
       {loading ? 'Starting...' : '⚔️ Play Now (Free)'}
     </button>
         </div>
