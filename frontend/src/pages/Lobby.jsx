@@ -89,11 +89,6 @@ function Lobby() {
   const isLoggedIn = !!userId;
 
   const getGuestCount     = () => parseInt(localStorage.getItem('guest_battles') || '0');
-  const incrementGuestCount = () => {
-    const next = getGuestCount() + 1;
-    localStorage.setItem('guest_battles', String(next));
-    return next;
-  };
 
   const fetchBattles = async () => {
     try { const res = await API.get('/battles/list'); setBattles(res.data); }
