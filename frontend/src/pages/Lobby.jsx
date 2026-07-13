@@ -3,7 +3,7 @@ import API from '../api/axios';
 import { useNavigate } from 'react-router-dom';
 import problems from '../problems';
 
-const GUEST_BATTLE_LIMIT = 3;
+const GUEST_BATTLE_LIMIT = 10;
 
 const css = `
   * { box-sizing: border-box; }
