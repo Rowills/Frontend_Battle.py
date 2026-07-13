@@ -162,6 +162,11 @@ function Battle({ join = false }) {
 
     setTimeout(() => {
       setBattleStarted(true);
+      // Count this as a played battle (guest tracking)
+      if (!localStorage.getItem('user_id')) {
+        const prev = parseInt(localStorage.getItem('guest_battles') || '0');
+        localStorage.setItem('guest_battles', prev + 1);
+      }
       startCountdown();
 
       const COUNTDOWN_MS = 4500;
@@ -234,6 +239,10 @@ function Battle({ join = false }) {
         clearTimeout(matchTimerRef.current);  // cancel silent fallback
         setRealJoined(true);
         setBattleStarted(true);
+        if (!localStorage.getItem('user_id')) {
+          const prev = parseInt(localStorage.getItem('guest_battles') || '0');
+          localStorage.setItem('guest_battles', prev + 1);
+        }
         startCountdown();
         return;
       }

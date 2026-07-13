@@ -125,10 +125,8 @@ function Lobby() {
       const prob = pool[Math.floor(Math.random() * pool.length)];
       if (isLoggedIn) {
         const res = await API.post(`/battles/create?player1_id=${userId}`, { problem_id: prob.id });
-        incrementGuestCount();
         navigate(`/battle/${res.data.id}`, { state: { problem: prob } });
       } else {
-        incrementGuestCount();
         navigate(`/battle/guest-${Date.now()}`, { state: { problem: prob, isGuest: true } });
       }
     } catch { /* silent */ }
