@@ -26,9 +26,9 @@ function App() {
         <Route path="/about" element={<About />} />
         <Route path="/practice" element={<Practice />} />
 
-        {/* These require login */}
-        <Route path="/battle/:id" element={isLoggedIn ? <Battle /> : <Navigate to="/login" />} />
-        {/* Private battle join link */}
+        {/* Battle is public — guests can play too */}
+        <Route path="/battle/:id" element={<Battle />} />
+        {/* Private battle join link — requires login */}
         <Route path="/join/:id" element={isLoggedIn ? <Battle join={true} /> : <Navigate to="/login" />} />
         <Route path="/profile" element={isLoggedIn ? <Profile /> : <Navigate to="/login" />} />
       </Routes>
